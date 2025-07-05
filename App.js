@@ -1,17 +1,19 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
 import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
 import HomeScreen from './screens/HomeScreen';
+import KitsScreen from './screens/KitsScreen';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
-  return <HomeScreen />;
+  return (
+    <NavigationContainer>
+      <Tab.Navigator>
+        <Tab.Screen name="예약 확인" component={HomeScreen} />
+        <Tab.Screen name="교구 관리" component={KitsScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
