@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
-
-const dummyReservations = [
-  { id: '1', time: '10:00', status: '신청마감', remaining: 0 },
-  { id: '2', time: '13:10', status: '예약 가능', remaining: 10 },
-  { id: '3', time: '15:00', status: '예약 가능', remaining: 8 },
-];
+import { fetchTodayReservations } from '../services/api';
 
 const HomeScreen = () => {
+  const [reservations, setReservations] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const data = await fetchTodayReservations();
+      setReservations(data);
+    };
+
+    loadData();
+  }, []);
+
   const renderItem = ({ item }) => (
     <ReservationItem
       time={item.time}
@@ -21,7 +27,7 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <Text style={styles.title}>오늘의 예약 정보</Text>
       <FlatList
-        data={dummyReservations}
+        data={reservations}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
       />
