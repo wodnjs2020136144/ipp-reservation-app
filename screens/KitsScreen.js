@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialKits } from '../services/dummyData';
 
@@ -7,16 +15,17 @@ const STORAGE_KEY = '@kit_quantities';
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // AsyncStorage에서 불러오기
+  // 데이터 불러오기
   const loadData = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
         setKits(JSON.parse(stored));
       } else {
-        setKits(initialKits); // 없으면 기본값
+        setKits(initialKits);
       }
     } catch (e) {
       console.error('저장된 수량 불러오기 실패', e);
@@ -26,7 +35,7 @@ const KitsScreen = () => {
     }
   };
 
-  // AsyncStorage에 저장
+  // 저장하기
   const saveData = async (updatedKits) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedKits));
@@ -35,15 +44,30 @@ const KitsScreen = () => {
     }
   };
 
-  // 수량 변경
+  // 수량 변경 + 로그 추가
   const changeQuantity = (id, diff) => {
-    const updated = kits.map((kit) =>
-      kit.id === id
-        ? { ...kit, quantity: Math.max(0, kit.quantity + diff) }
-        : kit
+    const kit = kits.find((k) => k.id === id);
+    if (!kit) return;
+
+    const updated = kits.map((k) =>
+      k.id === id
+        ? { ...k, quantity: Math.max(0, k.quantity + diff) }
+        : k
     );
+
     setKits(updated);
     saveData(updated);
+
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const date = now.toLocaleDateString('ko-KR');
+    const sign = diff > 0 ? '+' : '-';
+    const logText = `[${date} ${timestamp}] ${kit.name} ${sign}${Math.abs(diff)}`;
+
+    setLogs((prev) => [logText, ...prev.slice(0, 9)]); // 최대 10개
   };
 
   useEffect(() => {
@@ -66,7 +90,7 @@ const KitsScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <Text style={styles.title}>교구 수량 관리</Text>
 
       {loading ? (
@@ -76,9 +100,23 @@ const KitsScreen = () => {
           data={kits}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
+          scrollEnabled={false}
         />
       )}
-    </View>
+
+      <View style={styles.logContainer}>
+        <Text style={styles.logTitle}>변경 로그</Text>
+        {logs.length === 0 ? (
+          <Text style={styles.logEmpty}>로그 없음</Text>
+        ) : (
+          logs.map((log, idx) => (
+            <Text key={idx} style={styles.logItem}>
+              {log}
+            </Text>
+          ))
+        )}
+      </View>
+    </ScrollView>
   );
 };
 
@@ -127,5 +165,25 @@ const styles = StyleSheet.create({
   quantity: {
     fontSize: 18,
     marginHorizontal: 20,
+  },
+  logContainer: {
+    marginTop: 32,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#ccc',
+  },
+  logTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  logItem: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 4,
+  },
+  logEmpty: {
+    color: '#999',
+    fontSize: 14,
   },
 });
