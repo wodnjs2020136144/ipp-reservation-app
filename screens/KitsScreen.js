@@ -12,13 +12,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialKits } from '../services/dummyData';
 
 const STORAGE_KEY = '@kit_quantities';
+const LOG_KEY = '@kit_logs';
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 데이터 불러오기
+  useEffect(() => {
+    loadData();
+    loadLogs();
+  }, []);
+
+  // 교구 수량 불러오기
   const loadData = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
@@ -28,14 +34,26 @@ const KitsScreen = () => {
         setKits(initialKits);
       }
     } catch (e) {
-      console.error('저장된 수량 불러오기 실패', e);
+      console.error('수량 불러오기 실패', e);
       setKits(initialKits);
     } finally {
       setLoading(false);
     }
   };
 
-  // 저장하기
+  // 로그 불러오기
+  const loadLogs = async () => {
+    try {
+      const storedLogs = await AsyncStorage.getItem(LOG_KEY);
+      if (storedLogs) {
+        setLogs(JSON.parse(storedLogs));
+      }
+    } catch (e) {
+      console.error('로그 불러오기 실패', e);
+    }
+  };
+
+  // 수량 저장
   const saveData = async (updatedKits) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedKits));
@@ -44,7 +62,16 @@ const KitsScreen = () => {
     }
   };
 
-  // 수량 변경 + 로그 추가
+  // 로그 저장
+  const saveLogs = async (updatedLogs) => {
+    try {
+      await AsyncStorage.setItem(LOG_KEY, JSON.stringify(updatedLogs));
+    } catch (e) {
+      console.error('로그 저장 실패', e);
+    }
+  };
+
+  // 수량 변경
   const changeQuantity = (id, diff) => {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
@@ -67,12 +94,10 @@ const KitsScreen = () => {
     const sign = diff > 0 ? '+' : '-';
     const logText = `[${date} ${timestamp}] ${kit.name} ${sign}${Math.abs(diff)}`;
 
-    setLogs((prev) => [logText, ...prev.slice(0, 9)]); // 최대 10개
+    const newLogs = [logText, ...logs.slice(0, 9)];
+    setLogs(newLogs);
+    saveLogs(newLogs);
   };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const renderItem = ({ item }) => (
     <View style={styles.kitItem}>
