@@ -1,5 +1,3 @@
-// KitsScreen.js
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -231,7 +229,7 @@ const KitsScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>교구 수량 관리</Text>
+        <Text style={styles.title}>교구 관리</Text>
       </View>
       <View style={styles.actionRow}>
         <TouchableOpacity onPress={resetAll} style={styles.resetIconButton}>
@@ -298,9 +296,17 @@ const styles = StyleSheet.create({
   addKitInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 },
   addKitButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   kitCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 },
-  kitHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  kitName: { fontSize: 16, fontWeight: '600' },
-  kitQuantity: { fontSize: 16, fontWeight: '500', color: '#555' },
+  kitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',   // 수직 중앙 정렬
+  },
+  kitName: { fontSize: 17, fontWeight: '600' }, 
+  kitQuantity: {
+    fontSize: 20,           // 더 크게
+    fontWeight: '700',
+    color: '#333',
+  },
   kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
   button: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
   deleteButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ff3b30', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
