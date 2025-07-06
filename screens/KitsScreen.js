@@ -1,3 +1,5 @@
+// KitsScreen.js
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -9,12 +11,10 @@ import {
   Switch,
   TextInput,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { db } from '../firebase'; // firebase.js에서 db 내보낸 것 가져옴
 import { initialKits } from '../services/dummyData';
-
-const STORAGE_KEY = '@kit_quantities_v2';
-const LOG_KEY = '@kit_logs_v2';
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
@@ -24,45 +24,48 @@ const KitsScreen = () => {
 
   useEffect(() => {
     loadData();
-    loadLogs();
   }, []);
 
   const loadData = async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = stored ? JSON.parse(stored) : initialKits;
-      setKits(parsed);
+      const kitsSnapshot = await getDocs(collection(db, 'kits'));
+      const kitsData = [];
       const drafts = {};
-      parsed.forEach((k) => (drafts[k.id] = k.memo || ''));
+      kitsSnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        kitsData.push(data);
+        drafts[data.id] = data.memo || '';
+      });
+      setKits(kitsData);
       setMemoDrafts(drafts);
+
+      const logDoc = await getDoc(doc(db, 'logs', 'kitLogs'));
+      if (logDoc.exists()) {
+        setLogs(logDoc.data().entries || []);
+      } else {
+        setLogs([]);
+      }
     } catch (e) {
-      console.error('수량 불러오기 실패', e);
+      console.error('Firebase 데이터 불러오기 실패', e);
       setKits(initialKits);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadLogs = async () => {
-    try {
-      const storedLogs = await AsyncStorage.getItem(LOG_KEY);
-      if (storedLogs) setLogs(JSON.parse(storedLogs));
-    } catch (e) {
-      console.error('로그 불러오기 실패', e);
-    }
-  };
-
   const saveData = async (updated) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await Promise.all(
+        updated.map((kit) => setDoc(doc(db, 'kits', kit.id), kit))
+      );
     } catch (e) {
-      console.error('수량 저장 실패', e);
+      console.error('Firebase 저장 실패', e);
     }
   };
 
   const saveLogs = async (updatedLogs) => {
     try {
-      await AsyncStorage.setItem(LOG_KEY, JSON.stringify(updatedLogs));
+      await setDoc(doc(db, 'logs', 'kitLogs'), { entries: updatedLogs });
     } catch (e) {
       console.error('로그 저장 실패', e);
     }
@@ -73,9 +76,7 @@ const KitsScreen = () => {
     if (!kit) return;
 
     const updated = kits.map((k) =>
-      k.id === id
-        ? { ...k, quantity: Math.max(0, k.quantity + diff) }
-        : k
+      k.id === id ? { ...k, quantity: Math.max(0, k.quantity + diff) } : k
     );
 
     setKits(updated);
@@ -104,9 +105,7 @@ const KitsScreen = () => {
 
   const updateMemo = (id) => {
     const draft = memoDrafts[id];
-    const updated = kits.map((k) =>
-      k.id === id ? { ...k, memo: draft } : k
-    );
+    const updated = kits.map((k) => (k.id === id ? { ...k, memo: draft } : k));
     setKits(updated);
     saveData(updated);
 
@@ -119,9 +118,9 @@ const KitsScreen = () => {
 
   const resetAll = async () => {
     setKits(initialKits);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initialKits));
-    await AsyncStorage.removeItem(LOG_KEY);
+    await saveData(initialKits);
     setLogs([]);
+    await saveLogs([]);
     const drafts = {};
     initialKits.forEach((k) => (drafts[k.id] = ''));
     setMemoDrafts(drafts);
@@ -167,7 +166,9 @@ const KitsScreen = () => {
           style={styles.memoInput}
           placeholder="메모 입력..."
           value={memoDrafts[item.id] || ''}
-          onChangeText={(text) => setMemoDrafts((prev) => ({ ...prev, [item.id]: text }))}
+          onChangeText={(text) =>
+            setMemoDrafts((prev) => ({ ...prev, [item.id]: text }))
+          }
           multiline
         />
         <TouchableOpacity onPress={() => updateMemo(item.id)} style={styles.memoConfirmButton}>
@@ -219,132 +220,26 @@ const KitsScreen = () => {
 export default KitsScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fefefe',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  resetIconButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ff3b30',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  resetIconText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: 6,
-    fontSize: 14,
-  },
-  subTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
-  },
-  kitCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  kitHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  kitName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  kitQuantity: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#555',
-  },
-  kitButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 10,
-  },
-  button: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#007aff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  btnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  repairRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  repairLabel: {
-    fontSize: 14,
-    marginRight: 10,
-  },
-  memoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  memoInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 8,
-    fontSize: 14,
-    minHeight: 40,
-  },
-  memoConfirmButton: {
-    marginLeft: 10,
-    padding: 8,
-    backgroundColor: '#007aff',
-    borderRadius: 8,
-  },
-  logContainer: {
-    marginTop: 30,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  logTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  logItem: {
-    fontSize: 14,
-    color: '#444',
-    marginBottom: 4,
-  },
-  logEmpty: {
-    fontSize: 14,
-    color: '#aaa',
-  },
+  container: { flex: 1, backgroundColor: '#fefefe', paddingTop: 60, paddingHorizontal: 20 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: 'bold' },
+  resetIconButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ff3b30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  resetIconText: { color: '#fff', fontWeight: '600', marginLeft: 6, fontSize: 14 },
+  subTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12, color: '#333' },
+  kitCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 },
+  kitHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+  kitName: { fontSize: 16, fontWeight: '600' },
+  kitQuantity: { fontSize: 16, fontWeight: '500', color: '#555' },
+  kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+  button: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  repairRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  repairLabel: { fontSize: 14, marginRight: 10 },
+  memoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  memoInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8, fontSize: 14, minHeight: 40 },
+  memoConfirmButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8 },
+  logContainer: { marginTop: 30, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#ddd' },
+  logTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  logItem: { fontSize: 14, color: '#444', marginBottom: 4 },
+  logEmpty: { fontSize: 14, color: '#aaa' },
 });
