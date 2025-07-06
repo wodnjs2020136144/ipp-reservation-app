@@ -1,3 +1,5 @@
+// KitsScreen.js
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -6,7 +8,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialKits } from '../services/dummyData';
@@ -24,15 +25,10 @@ const KitsScreen = () => {
     loadLogs();
   }, []);
 
-  // 교구 수량 불러오기
   const loadData = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setKits(JSON.parse(stored));
-      } else {
-        setKits(initialKits);
-      }
+      setKits(stored ? JSON.parse(stored) : initialKits);
     } catch (e) {
       console.error('수량 불러오기 실패', e);
       setKits(initialKits);
@@ -41,28 +37,23 @@ const KitsScreen = () => {
     }
   };
 
-  // 로그 불러오기
   const loadLogs = async () => {
     try {
       const storedLogs = await AsyncStorage.getItem(LOG_KEY);
-      if (storedLogs) {
-        setLogs(JSON.parse(storedLogs));
-      }
+      if (storedLogs) setLogs(JSON.parse(storedLogs));
     } catch (e) {
       console.error('로그 불러오기 실패', e);
     }
   };
 
-  // 수량 저장
-  const saveData = async (updatedKits) => {
+  const saveData = async (updated) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedKits));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {
       console.error('수량 저장 실패', e);
     }
   };
 
-  // 로그 저장
   const saveLogs = async (updatedLogs) => {
     try {
       await AsyncStorage.setItem(LOG_KEY, JSON.stringify(updatedLogs));
@@ -71,7 +62,6 @@ const KitsScreen = () => {
     }
   };
 
-  // 수량 변경
   const changeQuantity = (id, diff) => {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
@@ -99,14 +89,23 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.kitItem}>
-      <Text style={styles.name}>{item.name}</Text>
-      <View style={styles.controls}>
+  const resetAll = async () => {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.removeItem(LOG_KEY);
+    setKits(initialKits);
+    setLogs([]);
+  };
+
+  const renderKit = ({ item }) => (
+    <View style={styles.kitCard}>
+      <View style={styles.kitHeader}>
+        <Text style={styles.kitName}>{item.name}</Text>
+        <Text style={styles.kitQuantity}>{item.quantity}개</Text>
+      </View>
+      <View style={styles.kitButtons}>
         <TouchableOpacity onPress={() => changeQuantity(item.id, -1)} style={styles.button}>
           <Text style={styles.btnText}>-</Text>
         </TouchableOpacity>
-        <Text style={styles.quantity}>{item.quantity}</Text>
         <TouchableOpacity onPress={() => changeQuantity(item.id, 1)} style={styles.button}>
           <Text style={styles.btnText}>+</Text>
         </TouchableOpacity>
@@ -115,33 +114,39 @@ const KitsScreen = () => {
   );
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>교구 수량 관리</Text>
+    <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>교구 수량 관리</Text>
+        <TouchableOpacity onPress={resetAll} style={styles.resetButton}>
+          <Text style={styles.resetText}>초기화</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
         <FlatList
+          ListHeaderComponent={() => <Text style={styles.subTitle}>보유 교구</Text>}
           data={kits}
-          renderItem={renderItem}
+          renderItem={renderKit}
           keyExtractor={(item) => item.id}
-          scrollEnabled={false}
+          ListFooterComponent={
+            <View style={styles.logContainer}>
+              <Text style={styles.logTitle}>변경 로그</Text>
+              {logs.length === 0 ? (
+                <Text style={styles.logEmpty}>로그 없음</Text>
+              ) : (
+                logs.map((log, idx) => (
+                  <Text key={idx} style={styles.logItem}>
+                    {log}
+                  </Text>
+                ))
+              )}
+            </View>
+          }
         />
       )}
-
-      <View style={styles.logContainer}>
-        <Text style={styles.logTitle}>변경 로그</Text>
-        {logs.length === 0 ? (
-          <Text style={styles.logEmpty}>로그 없음</Text>
-        ) : (
-          logs.map((log, idx) => (
-            <Text key={idx} style={styles.logItem}>
-              {log}
-            </Text>
-          ))
-        )}
-      </View>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -150,65 +155,98 @@ export default KitsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fefefe',
     paddingTop: 60,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20,
   },
-  kitItem: {
-    padding: 16,
-    marginBottom: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+  resetButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#ff3b30',
+    borderRadius: 6,
   },
-  name: {
+  resetText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  subTitle: {
     fontSize: 18,
     fontWeight: '600',
+    marginTop: 20,
+    marginBottom: 12,
+    color: '#333',
   },
-  controls: {
+  kitCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  kitHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'space-between',
+  },
+  kitName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  kitQuantity: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#555',
+  },
+  kitButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
   },
   button: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#007aff',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 10,
   },
   btnText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  quantity: {
-    fontSize: 18,
-    marginHorizontal: 20,
-  },
   logContainer: {
-    marginTop: 32,
+    marginTop: 30,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#ccc',
+    borderTopColor: '#ddd',
   },
   logTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   logItem: {
     fontSize: 14,
-    color: '#555',
+    color: '#444',
     marginBottom: 4,
   },
   logEmpty: {
-    color: '#999',
     fontSize: 14,
+    color: '#aaa',
   },
 });
