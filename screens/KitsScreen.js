@@ -180,6 +180,13 @@ const KitsScreen = () => {
     ]);
   };
 
+  const confirmResetAll = () => {
+    Alert.alert('초기화 확인', '모든 교구 데이터와 로그를 초기화할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '초기화', style: 'destructive', onPress: resetAll },
+    ]);
+  };
+
   const resetAll = async () => {
     setKits(initialKits);
     await saveData(initialKits);
@@ -247,7 +254,7 @@ const KitsScreen = () => {
         <Text style={styles.title}>교구 관리</Text>
       </View>
       <View style={styles.actionRow}>
-        <TouchableOpacity onPress={resetAll} style={styles.resetIconButton}>
+        <TouchableOpacity onPress={confirmResetAll} style={styles.resetIconButton}>
           <Ionicons name="refresh" size={18} color="#fff" />
           <Text style={styles.resetIconText}>초기화</Text>
         </TouchableOpacity>
