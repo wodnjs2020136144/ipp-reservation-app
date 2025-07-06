@@ -1,5 +1,3 @@
-// KitsScreen.js
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -8,12 +6,14 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialKits } from '../services/dummyData';
 
-const STORAGE_KEY = '@kit_quantities';
-const LOG_KEY = '@kit_logs';
+const STORAGE_KEY = '@kit_quantities_v2';
+const LOG_KEY = '@kit_logs_v2';
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
@@ -28,10 +28,10 @@ const KitsScreen = () => {
   const loadData = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      setKits(stored ? JSON.parse(stored) : initialKits);
+      setKits(stored ? JSON.parse(stored) : withDefaultFields(initialKits));
     } catch (e) {
       console.error('수량 불러오기 실패', e);
-      setKits(initialKits);
+      setKits(withDefaultFields(initialKits));
     } finally {
       setLoading(false);
     }
@@ -89,12 +89,36 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
-  const resetAll = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    await AsyncStorage.removeItem(LOG_KEY);
-    setKits(initialKits);
-    setLogs([]);
+  const toggleRepair = (id) => {
+    const updated = kits.map((k) =>
+      k.id === id ? { ...k, repairing: !k.repairing } : k
+    );
+    setKits(updated);
+    saveData(updated);
   };
+
+  const updateMemo = (id, memo) => {
+    const updated = kits.map((k) =>
+      k.id === id ? { ...k, memo } : k
+    );
+    setKits(updated);
+    saveData(updated);
+  };
+
+  const resetKits = async () => {
+    const reset = withDefaultFields(initialKits);
+    setKits(reset);
+    setLogs([]);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
+    await AsyncStorage.removeItem(LOG_KEY);
+  };
+
+  const withDefaultFields = (kits) =>
+    kits.map((k) => ({
+      ...k,
+      repairing: false,
+      memo: '',
+    }));
 
   const renderKit = ({ item }) => (
     <View style={styles.kitCard}>
@@ -102,6 +126,7 @@ const KitsScreen = () => {
         <Text style={styles.kitName}>{item.name}</Text>
         <Text style={styles.kitQuantity}>{item.quantity}개</Text>
       </View>
+
       <View style={styles.kitButtons}>
         <TouchableOpacity onPress={() => changeQuantity(item.id, -1)} style={styles.button}>
           <Text style={styles.btnText}>-</Text>
@@ -110,26 +135,46 @@ const KitsScreen = () => {
           <Text style={styles.btnText}>+</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={styles.repairRow}>
+        <Text style={styles.repairLabel}>수리 중</Text>
+        <Switch
+          value={item.repairing || false}
+          onValueChange={() => toggleRepair(item.id)}
+          style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+        />
+      </View>
+
+      <TextInput
+        style={styles.memoInput}
+        placeholder="메모 입력..."
+        value={item.memo || ''}
+        onChangeText={(text) => updateMemo(item.id, text)}
+        multiline
+      />
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>교구 수량 관리</Text>
-        <TouchableOpacity onPress={resetAll} style={styles.resetButton}>
-          <Text style={styles.resetText}>초기화</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.title}>교구 수량 관리</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
         <FlatList
-          ListHeaderComponent={() => <Text style={styles.subTitle}>보유 교구</Text>}
+          ListHeaderComponent={() => (
+            <View style={styles.headerRow}>
+              <Text style={styles.subTitle}>보유 교구</Text>
+              <TouchableOpacity onPress={resetKits}>
+                <Text style={styles.resetButton}>초기화</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           data={kits}
           renderItem={renderKit}
           keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
           ListFooterComponent={
             <View style={styles.logContainer}>
               <Text style={styles.logTitle}>변경 로그</Text>
@@ -159,32 +204,26 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
   },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  resetButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#ff3b30',
-    borderRadius: 6,
-  },
-  resetText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 13,
+    marginBottom: 12,
   },
   subTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginTop: 20,
-    marginBottom: 12,
     color: '#333',
+  },
+  resetButton: {
+    fontSize: 14,
+    color: '#007aff',
+    fontWeight: 'bold',
   },
   kitCard: {
     backgroundColor: '#fff',
@@ -216,9 +255,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   button: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#007aff',
     justifyContent: 'center',
     alignItems: 'center',
@@ -228,6 +267,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  repairRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  repairLabel: {
+    fontSize: 14,
+    marginRight: 10,
+  },
+  memoInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 8,
+    fontSize: 14,
+    minHeight: 40,
   },
   logContainer: {
     marginTop: 30,
