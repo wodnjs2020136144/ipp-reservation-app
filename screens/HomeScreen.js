@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, ScrollView } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
-import { fetchTodayReservations } from '../services/api';
-
-const reservationTypes = [
-  { key: 'ai', title: '인공지능 로봇 배움터' },
-  { key: 'earthquake', title: '지진 VR' },
-  { key: 'drone', title: '드론 VR' },
-];
+import { fetchAllReservations } from '../services/api'; // 수정된 API
 
 const HomeScreen = () => {
-  const [allReservations, setAllReservations] = useState({});
+  const [reservations, setReservations] = useState({
+    ai: [],
+    earthquake: [],
+    drone: [],
+  });
   const [loading, setLoading] = useState(true);
 
   const todayString = new Date().toLocaleDateString('ko-KR', {
@@ -21,44 +19,53 @@ const HomeScreen = () => {
   });
 
   useEffect(() => {
-    const loadAllReservations = async () => {
-      const results = {};
-      for (const type of reservationTypes) {
-        const data = await fetchTodayReservations(type.key);
-        results[type.key] = data;
-      }
-      setAllReservations(results);
+    let intervalId;
+
+    const loadData = async () => {
+      setLoading(true);
+      const data = await fetchAllReservations(); // 3개 타입 모두 불러오기
+      setReservations(data);
       setLoading(false);
     };
 
-    loadAllReservations();
+    loadData();
+    intervalId = setInterval(loadData, 30000); // 30초마다 갱신
+
+    return () => clearInterval(intervalId); // 컴포넌트 unmount 시 정리
   }, []);
 
+  const renderGroup = (title, data) => (
+    <View style={{ marginBottom: 30 }}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {data.length === 0 ? (
+        <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
+      ) : (
+        data.map((item, index) => (
+          <ReservationItem
+            key={`${title}-${index}`}
+            time={item.time}
+            status={item.status}
+            remaining={item.remaining}
+          />
+        ))
+      )}
+    </View>
+  );
+
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.title}>{todayString} 예약 정보</Text>
+
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
-        reservationTypes.map(({ key, title }) => (
-          <View key={key} style={styles.section}>
-            <Text style={styles.sectionTitle}>{title}</Text>
-            {allReservations[key]?.length > 0 ? (
-              allReservations[key].map((item) => (
-                <ReservationItem
-                  key={`${key}-${item.id}`}
-                  time={item.time}
-                  status={item.status}
-                  remaining={item.remaining}
-                />
-              ))
-            ) : (
-              <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
-            )}
-          </View>
-        ))
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {renderGroup('인공지능 로봇 배움터', reservations.ai)}
+          {renderGroup('지진 VR', reservations.earthquake)}
+          {renderGroup('드론 VR', reservations.drone)}
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 };
 
@@ -76,18 +83,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
-  section: {
-    marginBottom: 30,
-  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 10,
-    color: '#007aff',
   },
   emptyText: {
-    fontSize: 15,
+    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 10,
     color: '#888',
-    marginBottom: 10,
   },
 });
