@@ -1,3 +1,4 @@
+
 // KitsScreen.js
 
 import React, { useEffect, useState } from 'react';
@@ -10,17 +11,20 @@ import {
   ActivityIndicator,
   Switch,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
-import { db } from '../firebase'; // firebase.js에서 db 내보낸 것 가져옴
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { initialKits } from '../services/dummyData';
+import uuid from 'react-native-uuid';
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [memoDrafts, setMemoDrafts] = useState({});
+  const [newKitName, setNewKitName] = useState('');
 
   useEffect(() => {
     loadData();
@@ -71,6 +75,16 @@ const KitsScreen = () => {
     }
   };
 
+  const createLog = (name, action) => {
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const date = now.toLocaleDateString('ko-KR');
+    return `[${date} ${timestamp}] ${name} ${action}`;
+  };
+
   const changeQuantity = (id, diff) => {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
@@ -116,6 +130,50 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
+  const addNewKit = async () => {
+    if (!newKitName.trim()) return;
+    const newKit = {
+      id: uuid.v4(),
+      name: newKitName.trim(),
+      quantity: 0,
+      repairing: false,
+      memo: '',
+    };
+    const updated = [newKit, ...kits];
+    setKits(updated);
+    setMemoDrafts((prev) => ({ ...prev, [newKit.id]: '' }));
+    setNewKitName('');
+    await saveData(updated);
+
+    const log = createLog(newKit.name, '추가됨');
+    const newLogs = [log, ...logs.slice(0, 9)];
+    setLogs(newLogs);
+    await saveLogs(newLogs);
+  };
+
+  const deleteKit = async (id) => {
+    const kit = kits.find((k) => k.id === id);
+    Alert.alert('삭제 확인', `${kit.name}을(를) 삭제할까요?`, [
+      {
+        text: '취소',
+        style: 'cancel',
+      },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          const updated = kits.filter((k) => k.id !== id);
+          setKits(updated);
+          await deleteDoc(doc(db, 'kits', id));
+          const log = createLog(kit.name, '삭제됨');
+          const newLogs = [log, ...logs.slice(0, 9)];
+          setLogs(newLogs);
+          await saveLogs(newLogs);
+        },
+      },
+    ]);
+  };
+
   const resetAll = async () => {
     setKits(initialKits);
     await saveData(initialKits);
@@ -124,16 +182,6 @@ const KitsScreen = () => {
     const drafts = {};
     initialKits.forEach((k) => (drafts[k.id] = ''));
     setMemoDrafts(drafts);
-  };
-
-  const createLog = (name, action) => {
-    const now = new Date();
-    const timestamp = now.toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const date = now.toLocaleDateString('ko-KR');
-    return `[${date} ${timestamp}] ${name} ${action}`;
   };
 
   const renderKit = ({ item }) => (
@@ -149,6 +197,9 @@ const KitsScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => changeQuantity(item.id, 1)} style={styles.button}>
           <Text style={styles.btnText}>+</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => deleteKit(item.id)} style={styles.deleteButton}>
+          <Ionicons name="trash-outline" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -188,6 +239,18 @@ const KitsScreen = () => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.addKitRow}>
+        <TextInput
+          style={styles.addKitInput}
+          placeholder="새 교구 이름 입력"
+          value={newKitName}
+          onChangeText={setNewKitName}
+        />
+        <TouchableOpacity onPress={addNewKit} style={styles.addKitButton}>
+          <Ionicons name="add" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
@@ -200,15 +263,15 @@ const KitsScreen = () => {
           ListFooterComponent={
             <View style={styles.logContainer}>
               <Text style={styles.logTitle}>변경 로그</Text>
-              {logs.length === 0 ? (
-                <Text style={styles.logEmpty}>로그 없음</Text>
-              ) : (
-                logs.map((log, idx) => (
-                  <Text key={idx} style={styles.logItem}>
-                    {log}
-                  </Text>
-                ))
-              )}
+              <View style={{ maxHeight: 200 }}>
+                <FlatList
+                  data={logs}
+                  keyExtractor={(_, index) => index.toString()}
+                  renderItem={({ item }) => <Text style={styles.logItem}>{item}</Text>}
+                  scrollEnabled
+                  nestedScrollEnabled
+                />
+              </View>
             </View>
           }
         />
@@ -226,12 +289,16 @@ const styles = StyleSheet.create({
   resetIconButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ff3b30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   resetIconText: { color: '#fff', fontWeight: '600', marginLeft: 6, fontSize: 14 },
   subTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12, color: '#333' },
+  addKitRow: { flexDirection: 'row', marginBottom: 10 },
+  addKitInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 },
+  addKitButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   kitCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 },
   kitHeader: { flexDirection: 'row', justifyContent: 'space-between' },
   kitName: { fontSize: 16, fontWeight: '600' },
   kitQuantity: { fontSize: 16, fontWeight: '500', color: '#555' },
   kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
   button: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
+  deleteButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ff3b30', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   repairRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   repairLabel: { fontSize: 14, marginRight: 10 },
@@ -241,5 +308,4 @@ const styles = StyleSheet.create({
   logContainer: { marginTop: 30, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#ddd' },
   logTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   logItem: { fontSize: 14, color: '#444', marginBottom: 4 },
-  logEmpty: { fontSize: 14, color: '#aaa' },
 });
