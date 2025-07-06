@@ -10,6 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { initialKits } from '../services/dummyData';
 
 const STORAGE_KEY = '@kit_quantities_v2';
@@ -19,6 +20,7 @@ const KitsScreen = () => {
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [memoDrafts, setMemoDrafts] = useState({});
 
   useEffect(() => {
     loadData();
@@ -28,10 +30,14 @@ const KitsScreen = () => {
   const loadData = async () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      setKits(stored ? JSON.parse(stored) : withDefaultFields(initialKits));
+      const parsed = stored ? JSON.parse(stored) : initialKits;
+      setKits(parsed);
+      const drafts = {};
+      parsed.forEach((k) => (drafts[k.id] = k.memo || ''));
+      setMemoDrafts(drafts);
     } catch (e) {
       console.error('수량 불러오기 실패', e);
-      setKits(withDefaultFields(initialKits));
+      setKits(initialKits);
     } finally {
       setLoading(false);
     }
@@ -75,50 +81,61 @@ const KitsScreen = () => {
     setKits(updated);
     saveData(updated);
 
+    const log = createLog(kit.name, `${diff > 0 ? '+' : '-'}${Math.abs(diff)}`);
+    const newLogs = [log, ...logs.slice(0, 9)];
+    setLogs(newLogs);
+    saveLogs(newLogs);
+  };
+
+  const toggleRepair = (id) => {
+    const kit = kits.find((k) => k.id === id);
+    const updated = kits.map((k) =>
+      k.id === id ? { ...k, repairing: !k.repairing } : k
+    );
+    setKits(updated);
+    saveData(updated);
+
+    const status = !kit.repairing ? '수리 시작' : '수리 완료';
+    const log = createLog(kit.name, status);
+    const newLogs = [log, ...logs.slice(0, 9)];
+    setLogs(newLogs);
+    saveLogs(newLogs);
+  };
+
+  const updateMemo = (id) => {
+    const draft = memoDrafts[id];
+    const updated = kits.map((k) =>
+      k.id === id ? { ...k, memo: draft } : k
+    );
+    setKits(updated);
+    saveData(updated);
+
+    const kit = kits.find((k) => k.id === id);
+    const log = createLog(kit.name, '메모 수정');
+    const newLogs = [log, ...logs.slice(0, 9)];
+    setLogs(newLogs);
+    saveLogs(newLogs);
+  };
+
+  const resetAll = async () => {
+    setKits(initialKits);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initialKits));
+    await AsyncStorage.removeItem(LOG_KEY);
+    setLogs([]);
+    const drafts = {};
+    initialKits.forEach((k) => (drafts[k.id] = ''));
+    setMemoDrafts(drafts);
+  };
+
+  const createLog = (name, action) => {
     const now = new Date();
     const timestamp = now.toLocaleTimeString('ko-KR', {
       hour: '2-digit',
       minute: '2-digit',
     });
     const date = now.toLocaleDateString('ko-KR');
-    const sign = diff > 0 ? '+' : '-';
-    const logText = `[${date} ${timestamp}] ${kit.name} ${sign}${Math.abs(diff)}`;
-
-    const newLogs = [logText, ...logs.slice(0, 9)];
-    setLogs(newLogs);
-    saveLogs(newLogs);
+    return `[${date} ${timestamp}] ${name} ${action}`;
   };
-
-  const toggleRepair = (id) => {
-    const updated = kits.map((k) =>
-      k.id === id ? { ...k, repairing: !k.repairing } : k
-    );
-    setKits(updated);
-    saveData(updated);
-  };
-
-  const updateMemo = (id, memo) => {
-    const updated = kits.map((k) =>
-      k.id === id ? { ...k, memo } : k
-    );
-    setKits(updated);
-    saveData(updated);
-  };
-
-  const resetKits = async () => {
-    const reset = withDefaultFields(initialKits);
-    setKits(reset);
-    setLogs([]);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reset));
-    await AsyncStorage.removeItem(LOG_KEY);
-  };
-
-  const withDefaultFields = (kits) =>
-    kits.map((k) => ({
-      ...k,
-      repairing: false,
-      memo: '',
-    }));
 
   const renderKit = ({ item }) => (
     <View style={styles.kitCard}>
@@ -145,32 +162,36 @@ const KitsScreen = () => {
         />
       </View>
 
-      <TextInput
-        style={styles.memoInput}
-        placeholder="메모 입력..."
-        value={item.memo || ''}
-        onChangeText={(text) => updateMemo(item.id, text)}
-        multiline
-      />
+      <View style={styles.memoRow}>
+        <TextInput
+          style={styles.memoInput}
+          placeholder="메모 입력..."
+          value={memoDrafts[item.id] || ''}
+          onChangeText={(text) => setMemoDrafts((prev) => ({ ...prev, [item.id]: text }))}
+          multiline
+        />
+        <TouchableOpacity onPress={() => updateMemo(item.id)} style={styles.memoConfirmButton}>
+          <Ionicons name="checkmark-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>교구 수량 관리</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>교구 수량 관리</Text>
+        <TouchableOpacity onPress={resetAll} style={styles.resetIconButton}>
+          <Ionicons name="refresh" size={18} color="#fff" />
+          <Text style={styles.resetIconText}>초기화</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
         <FlatList
-          ListHeaderComponent={() => (
-            <View style={styles.headerRow}>
-              <Text style={styles.subTitle}>보유 교구</Text>
-              <TouchableOpacity onPress={resetKits}>
-                <Text style={styles.resetButton}>초기화</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          ListHeaderComponent={() => <Text style={styles.subTitle}>보유 교구</Text>}
           data={kits}
           renderItem={renderKit}
           keyExtractor={(item) => item.id}
@@ -204,26 +225,35 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  resetIconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff3b30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  resetIconText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 6,
+    fontSize: 14,
   },
   subTitle: {
     fontSize: 18,
     fontWeight: '600',
+    marginBottom: 12,
     color: '#333',
-  },
-  resetButton: {
-    fontSize: 14,
-    color: '#007aff',
-    fontWeight: 'bold',
   },
   kitCard: {
     backgroundColor: '#fff',
@@ -277,14 +307,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginRight: 10,
   },
-  memoInput: {
+  memoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 10,
+  },
+  memoInput: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     padding: 8,
     fontSize: 14,
     minHeight: 40,
+  },
+  memoConfirmButton: {
+    marginLeft: 10,
+    padding: 8,
+    backgroundColor: '#007aff',
+    borderRadius: 8,
   },
   logContainer: {
     marginTop: 30,
