@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; // 아이콘 사용
 import ReservationItem from '../components/ReservationItem';
-import { fetchAllReservations } from '../services/api'; // 수정된 API
+import { fetchAllReservations } from '../services/api';
 
 const HomeScreen = () => {
   const [reservations, setReservations] = useState({
@@ -18,20 +26,17 @@ const HomeScreen = () => {
     weekday: 'short',
   });
 
+  const loadData = async () => {
+    setLoading(true);
+    const data = await fetchAllReservations();
+    setReservations(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    let intervalId;
-
-    const loadData = async () => {
-      setLoading(true);
-      const data = await fetchAllReservations(); // 3개 타입 모두 불러오기
-      setReservations(data);
-      setLoading(false);
-    };
-
     loadData();
-    intervalId = setInterval(loadData, 30000); // 30초마다 갱신
-
-    return () => clearInterval(intervalId); // 컴포넌트 unmount 시 정리
+    const intervalId = setInterval(loadData, 30000);
+    return () => clearInterval(intervalId);
   }, []);
 
   const renderGroup = (title, data) => (
@@ -54,12 +59,18 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{todayString} 예약 정보</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{todayString} 예약 정보</Text>
+        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={18} color="#007aff" />
+          <Text style={styles.refreshText}>새로고침</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#007aff" />
+        <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
           {renderGroup('인공지능 로봇 배움터', reservations.ai)}
           {renderGroup('지진 VR', reservations.earthquake)}
           {renderGroup('드론 VR', reservations.drone)}
@@ -78,10 +89,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: '#fff',
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 20,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#007aff',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  refreshText: {
+    color: '#007aff',
+    fontWeight: '500',
+    marginLeft: 6,
+    fontSize: 14,
   },
   sectionTitle: {
     fontSize: 16,
