@@ -6,6 +6,8 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // 아이콘 사용
 import ReservationItem from '../components/ReservationItem';
@@ -40,7 +42,7 @@ const HomeScreen = () => {
   }, []);
 
   const renderGroup = (title, data) => (
-    <View style={{ marginBottom: 30 }}>
+    <View style={{ marginBottom: 30, paddingHorizontal: 10 }}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {data.length === 0 ? (
         <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
@@ -58,25 +60,33 @@ const HomeScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>{todayString} 예약 정보</Text>
-        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={18} color="#007aff" />
-          <Text style={styles.refreshText}>새로고침</Text>
-        </TouchableOpacity>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{todayString} 예약 정보</Text>
+          <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+            <Ionicons name="refresh" size={18} color="#007aff" />
+            <Text style={styles.refreshText}>새로고침</Text>
+          </TouchableOpacity>
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
-      ) : (
-        <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
-          {renderGroup('인공지능 로봇 배움터', reservations.ai)}
-          {renderGroup('지진 VR', reservations.earthquake)}
-          {renderGroup('드론 VR', reservations.drone)}
-        </ScrollView>
-      )}
-    </View>
+        {loading ? (
+          <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {renderGroup('인공지능 로봇 배움터', reservations.ai)}
+            {renderGroup('지진 VR', reservations.earthquake)}
+            {renderGroup('드론 VR', reservations.drone)}
+          </ScrollView>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -124,5 +134,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 10,
     color: '#888',
+  },
+  scrollContent: {
+    paddingBottom: 30,
   },
 });
