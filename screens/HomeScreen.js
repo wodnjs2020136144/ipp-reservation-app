@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, ScrollView } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
 import { fetchTodayReservations } from '../services/api';
 
+const reservationTypes = [
+  { key: 'ai', title: '인공지능 로봇 배움터' },
+  { key: 'earthquake', title: '지진 VR' },
+  { key: 'drone', title: '드론 VR' },
+];
+
 const HomeScreen = () => {
-  const [reservations, setReservations] = useState([]);
+  const [allReservations, setAllReservations] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // 오늘 날짜 문자열 생성
   const todayString = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -16,39 +21,44 @@ const HomeScreen = () => {
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const data = await fetchTodayReservations();
-      setReservations(data);
+    const loadAllReservations = async () => {
+      const results = {};
+      for (const type of reservationTypes) {
+        const data = await fetchTodayReservations(type.key);
+        results[type.key] = data;
+      }
+      setAllReservations(results);
       setLoading(false);
     };
 
-    loadData();
+    loadAllReservations();
   }, []);
 
-  const renderItem = ({ item }) => (
-    <ReservationItem
-      time={item.time}
-      status={item.status}
-      remaining={item.remaining}
-    />
-  );
-
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <Text style={styles.title}>{todayString} 예약 정보</Text>
-
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
-      ) : reservations.length === 0 ? (
-        <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
       ) : (
-        <FlatList
-          data={reservations}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-        />
+        reservationTypes.map(({ key, title }) => (
+          <View key={key} style={styles.section}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {allReservations[key]?.length > 0 ? (
+              allReservations[key].map((item) => (
+                <ReservationItem
+                  key={`${key}-${item.id}`}
+                  time={item.time}
+                  status={item.status}
+                  remaining={item.remaining}
+                />
+              ))
+            ) : (
+              <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
+            )}
+          </View>
+        ))
       )}
-    </View>
+    </ScrollView>
   );
 };
 
@@ -66,10 +76,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
+  section: {
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#007aff',
+  },
   emptyText: {
-    textAlign: 'center',
-    fontSize: 16,
-    marginTop: 40,
+    fontSize: 15,
     color: '#888',
+    marginBottom: 10,
   },
 });
