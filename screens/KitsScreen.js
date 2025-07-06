@@ -1,3 +1,5 @@
+// screens/KitsScreens.js
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -19,6 +21,9 @@ import uuid from 'react-native-uuid';
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [page, setPage] = useState(0);
+  const LOGS_PER_PAGE = 10;
+  const LOG_HISTORY_LIMIT = 100;   // 최대 저장 로그 개수
   const [loading, setLoading] = useState(true);
   const [memoDrafts, setMemoDrafts] = useState({});
   const [newKitName, setNewKitName] = useState('');
@@ -26,6 +31,10 @@ const KitsScreen = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    setPage(0);   // 새 로그가 오면 첫 페이지로
+  }, [logs]);
 
   const loadData = async () => {
     try {
@@ -94,7 +103,7 @@ const KitsScreen = () => {
     saveData(updated);
 
     const log = createLog(kit.name, `${diff > 0 ? '+' : '-'}${Math.abs(diff)}`);
-    const newLogs = [log, ...logs.slice(0, 9)];
+    const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
     setLogs(newLogs);
     saveLogs(newLogs);
   };
@@ -109,7 +118,7 @@ const KitsScreen = () => {
 
     const status = !kit.repairing ? '수리 시작' : '수리 완료';
     const log = createLog(kit.name, status);
-    const newLogs = [log, ...logs.slice(0, 9)];
+    const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
     setLogs(newLogs);
     saveLogs(newLogs);
   };
@@ -122,7 +131,7 @@ const KitsScreen = () => {
 
     const kit = kits.find((k) => k.id === id);
     const log = createLog(kit.name, '메모 수정');
-    const newLogs = [log, ...logs.slice(0, 9)];
+    const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
     setLogs(newLogs);
     saveLogs(newLogs);
   };
@@ -143,7 +152,7 @@ const KitsScreen = () => {
     await saveData(updated);
 
     const log = createLog(newKit.name, '추가됨');
-    const newLogs = [log, ...logs.slice(0, 9)];
+    const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
     setLogs(newLogs);
     await saveLogs(newLogs);
   };
@@ -163,7 +172,7 @@ const KitsScreen = () => {
           setKits(updated);
           await deleteDoc(doc(db, 'kits', id));
           const log = createLog(kit.name, '삭제됨');
-          const newLogs = [log, ...logs.slice(0, 9)];
+          const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
           setLogs(newLogs);
           await saveLogs(newLogs);
         },
@@ -180,6 +189,12 @@ const KitsScreen = () => {
     initialKits.forEach((k) => (drafts[k.id] = ''));
     setMemoDrafts(drafts);
   };
+
+  const start = page * LOGS_PER_PAGE;
+  const end = start + LOGS_PER_PAGE;
+  const currentLogs = logs.slice(start, end);
+  const hasPrev = page > 0;
+  const hasNext = end < logs.length;
 
   const renderKit = ({ item }) => (
     <View style={styles.kitCard}>
@@ -258,7 +273,7 @@ const KitsScreen = () => {
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
         <FlatList
-          ListHeaderComponent={() => <Text style={styles.subTitle}>보유 교구</Text>}
+          ListHeaderComponent={() => <Text style={styles.sectionTitle}>보유 교구</Text>}
           data={kits}
           renderItem={renderKit}
           keyExtractor={(item) => item.id}
@@ -266,15 +281,35 @@ const KitsScreen = () => {
           ListFooterComponent={
             <View style={styles.logContainer}>
               <Text style={styles.logTitle}>변경 로그</Text>
-              <View style={{ maxHeight: 200 }}>
+              <View style={{ maxHeight: 220 }}>
                 <FlatList
-                  data={logs}
+                  data={currentLogs}
                   keyExtractor={(_, index) => index.toString()}
                   renderItem={({ item }) => <Text style={styles.logItem}>{item}</Text>}
                   scrollEnabled
-                  nestedScrollEnabled
                 />
               </View>
+              {logs.length > LOGS_PER_PAGE && (
+                <View style={styles.pagerRow}>
+                  <TouchableOpacity
+                    disabled={!hasPrev}
+                    onPress={() => hasPrev && setPage((p) => p - 1)}
+                    style={[styles.pagerButton, !hasPrev && { opacity: 0.3 }]}
+                  >
+                    <Ionicons name="chevron-back" size={20} color="#007aff" />
+                  </TouchableOpacity>
+                  <Text style={styles.pagerText}>
+                    {page + 1} / {Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE))}
+                  </Text>
+                  <TouchableOpacity
+                    disabled={!hasNext}
+                    onPress={() => hasNext && setPage((p) => p + 1)}
+                    style={[styles.pagerButton, !hasNext && { opacity: 0.3 }]}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="#007aff" />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           }
         />
@@ -286,12 +321,12 @@ const KitsScreen = () => {
 export default KitsScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fefefe', paddingTop: 60, paddingHorizontal: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#fff', paddingTop: 60, paddingHorizontal: 20 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: 'bold' },
   resetIconButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ff3b30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   resetIconText: { color: '#fff', fontWeight: '600', marginLeft: 6, fontSize: 14 },
-  subTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12, color: '#333' },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333' },
   addKitRow: { flexDirection: 'row', marginBottom: 10 },
   addKitInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 },
   addKitButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
@@ -319,6 +354,22 @@ const styles = StyleSheet.create({
   logContainer: { marginTop: 30, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#ddd' },
   logTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   logItem: { fontSize: 14, color: '#444', marginBottom: 4 },
+  pagerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  pagerButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  pagerText: {
+    fontSize: 14,
+    color: '#007aff',
+    fontWeight: '600',
+    marginHorizontal: 4,
+  },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
