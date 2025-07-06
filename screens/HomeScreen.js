@@ -1,3 +1,5 @@
+// screens/HomeScreen.js
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -53,7 +55,7 @@ const HomeScreen = () => {
     }
 
     return (
-      <View style={{ marginBottom: 30, paddingHorizontal: 10 }}>
+      <View style={styles.groupCard}>
         <Text style={styles.sectionTitle}>{title}</Text>
 
         {specialMessage ? (
@@ -139,10 +141,22 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
   },
+  groupCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 12,
+    color: '#333',
   },
   emptyText: {
     textAlign: 'center',
@@ -151,6 +165,7 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   scrollContent: {
-    paddingBottom: 30,
+    paddingBottom: 40,
+    paddingHorizontal: 4,
   },
 });
