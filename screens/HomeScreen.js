@@ -27,6 +27,8 @@ const HomeScreen = () => {
     day: 'numeric',
     weekday: 'short',
   });
+  // 0 = 일, 1 = 월 … 6 = 토
+  const todayDay = new Date().getDay();
 
   const loadData = async () => {
     setLoading(true);
@@ -41,23 +43,36 @@ const HomeScreen = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  const renderGroup = (title, data) => (
-    <View style={{ marginBottom: 30, paddingHorizontal: 10 }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {data.length === 0 ? (
-        <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
-      ) : (
-        data.map((item, index) => (
-          <ReservationItem
-            key={`${title}-${index}`}
-            time={item.time}
-            status={item.status}
-            remaining={item.remaining}
-          />
-        ))
-      )}
-    </View>
-  );
+  const renderGroup = (title, data, type) => {
+    // 요일·종류별 특수 안내
+    let specialMessage = '';
+    if (todayDay === 1) {                 // 월요일 전체 휴관
+      specialMessage = '월요일은 휴관입니다.';
+    } else if (todayDay === 0 && type === 'earthquake') {
+      specialMessage = '일요일은 지진 VR 미운영';
+    }
+
+    return (
+      <View style={{ marginBottom: 30, paddingHorizontal: 10 }}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+
+        {specialMessage ? (
+          <Text style={styles.emptyText}>{specialMessage}</Text>
+        ) : data.length === 0 ? (
+          <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
+        ) : (
+          data.map((item, index) => (
+            <ReservationItem
+              key={`${type}-${index}`}
+              time={item.time}
+              status={item.status}
+              remaining={item.remaining}
+            />
+          ))
+        )}
+      </View>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -80,9 +95,9 @@ const HomeScreen = () => {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {renderGroup('인공지능 로봇 배움터', reservations.ai)}
-            {renderGroup('지진 VR', reservations.earthquake)}
-            {renderGroup('드론 VR', reservations.drone)}
+            {renderGroup('인공지능 로봇 배움터', reservations.ai, 'ai')}
+            {renderGroup('지진 VR', reservations.earthquake, 'earthquake')}
+            {renderGroup('드론 VR', reservations.drone, 'drone')}
           </ScrollView>
         )}
       </View>
