@@ -2,59 +2,37 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const ReservationItem = ({ time, status, remaining }) => {
-  const getStylesByStatus = (status) => {
-    if (status === '신청마감') {
-      return {
-        container: styles.closed,
-        text: styles.closedText,
-      };
-    }
-
-    // 기본: 예약 가능
-    return {
-      container: styles.open,
-      text: styles.openText,
-    };
-  };
-
-  const statusStyle = getStylesByStatus(status);
-
   return (
-    <View style={[styles.item, statusStyle.container]}>
+    <View style={styles.item}>
       <Text style={styles.time}>{time}</Text>
-      <Text style={[styles.status, statusStyle.text]}>
-        {status} ({remaining}명 남음)
-      </Text>
+      <Text style={styles.status}>{status}</Text>
+      {typeof remaining === 'number' && (
+        <Text style={styles.remaining}>{remaining}명</Text>
+      )}
     </View>
   );
 };
 
-export default ReservationItem;
-
 const styles = StyleSheet.create({
   item: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-  },
-  open: {
-    backgroundColor: '#e0f0ff',
-  },
-  closed: {
-    backgroundColor: '#e0e0e0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
   },
   time: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
   },
   status: {
     fontSize: 16,
-    marginTop: 4,
-  },
-  openText: {
+    fontWeight: 'bold',
     color: '#007aff',
   },
-  closedText: {
-    color: '#888',
+  remaining: {
+    fontSize: 16,
+    color: '#555',
   },
 });
+
+export default ReservationItem;
