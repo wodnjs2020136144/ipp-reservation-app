@@ -1,6 +1,6 @@
 // services/api.js
 
-const BASE_URL = 'http://192.168.219.122:4000'; // ⚠️ 반드시 실제 IP로 변경할 것
+const BASE_URL = 'https://ipp-reservation-server.onrender.com';
 
 export const fetchAllReservations = async () => {
   const types = ['ai', 'earthquake', 'drone'];
