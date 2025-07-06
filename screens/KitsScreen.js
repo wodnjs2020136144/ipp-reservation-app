@@ -1,4 +1,3 @@
-
 // KitsScreen.js
 
 import React, { useEffect, useState } from 'react';
@@ -233,9 +232,15 @@ const KitsScreen = () => {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>교구 수량 관리</Text>
+      </View>
+      <View style={styles.actionRow}>
         <TouchableOpacity onPress={resetAll} style={styles.resetIconButton}>
           <Ionicons name="refresh" size={18} color="#fff" />
           <Text style={styles.resetIconText}>초기화</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={18} color="#007aff" />
+          <Text style={styles.refreshText}>새로고침</Text>
         </TouchableOpacity>
       </View>
 
@@ -308,4 +313,24 @@ const styles = StyleSheet.create({
   logContainer: { marginTop: 30, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#ddd' },
   logTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   logItem: { fontSize: 14, color: '#444', marginBottom: 4 },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#007aff',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  refreshText: {
+    color: '#007aff',
+    fontWeight: '500',
+    marginLeft: 6,
+    fontSize: 14,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
 });
