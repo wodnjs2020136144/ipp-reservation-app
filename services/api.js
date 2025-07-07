@@ -1,6 +1,6 @@
 // services/api.js
 
-const BASE_URL = 'https://ipp-reservation-server.onrender.com';
+const BASE_URL = 'https://ipp-reservation-server.fly.dev';
 
 export const fetchAllReservations = async () => {
   const types = ['ai', 'earthquake', 'drone'];
