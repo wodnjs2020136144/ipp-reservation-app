@@ -4,7 +4,7 @@ const BASE_URL = 'https://ipp-reservation-server.onrender.com';
 
 export const fetchAllReservations = async () => {
   const types = ['ai', 'earthquake', 'drone'];
-  const baseUrl = 'http://localhost:4000/api/reservations';
+  const baseUrl = `${BASE_URL}/api/reservations`;
 
   const results = await Promise.all(
     types.map(async (type) => {
