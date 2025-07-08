@@ -1,9 +1,12 @@
 // screens/ScheduleScreen.js
 import React, { useState, useMemo, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
@@ -22,6 +25,33 @@ const weekendZoneColors = {
 const weekendBorderColor = '#8E24AA'; // purple for weekend entries
 
 const ScheduleScreen = () => {
+  // Load saved employees and offsets
+  useEffect(() => {
+    (async () => {
+      try {
+        // Load local
+        const emps = await AsyncStorage.getItem('employees');
+        const offs = await AsyncStorage.getItem('startOffsets');
+        let localEmps = emps ? JSON.parse(emps) : null;
+        let localOffs = offs ? JSON.parse(offs) : null;
+        // Load Firestore
+        const docRef = doc(db, 'settings', 'scheduleConfig');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.employees) localEmps = data.employees;
+          if (data.startOffsets) localOffs = data.startOffsets;
+          // Persist to local
+          await AsyncStorage.setItem('employees', JSON.stringify(localEmps));
+          await AsyncStorage.setItem('startOffsets', JSON.stringify(localOffs));
+        }
+        if (localEmps) setEmployees(localEmps);
+        if (localOffs) setStartOffsets(localOffs);
+      } catch (e) {
+        console.warn('Failed to load schedule settings', e);
+      }
+    })();
+  }, []);
   const [employees, setEmployees] = useState(['', '', '']);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -43,13 +73,22 @@ const ScheduleScreen = () => {
     setSelectedIndex(index);
   };
 
-  const saveName = () => {
+  const saveName = async () => {
     const newEmps = [...employees];
     newEmps[selectedIndex] = inputName.trim();
     setEmployees(newEmps);
     const newOffsets = [...startOffsets];
     newOffsets[selectedIndex] = tempOffset;
     setStartOffsets(newOffsets);
+    // persist changes
+    await AsyncStorage.setItem('employees', JSON.stringify(newEmps));
+    await AsyncStorage.setItem('startOffsets', JSON.stringify(newOffsets));
+    // persist to Firestore
+    const configRef = doc(db, 'settings', 'scheduleConfig');
+    await setDoc(configRef, {
+      employees: newEmps,
+      startOffsets: newOffsets,
+    });
     setModalVisible(false);
   };
 
@@ -60,6 +99,16 @@ const ScheduleScreen = () => {
     const month = today.month();
     const year = today.year();
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
+    // Collect all Saturdays in the month
+    const saturdayDates = [];
+    for (let d2 = 1; d2 <= lastDate; d2++) {
+      if (dayjs(new Date(year, month, d2)).day() === 6) {
+        saturdayDates.push(d2);
+      }
+    }
+    const saturdayCount = saturdayDates.length;
+    // Determine initial non-swapping weeks: if 5 saturdays, first 3; if 4 saturdays, first 2
+    const initWeeks = saturdayCount === 5 ? 3 : 2;
     let weekdayCounter = 0;
     for (let date = 1; date <= lastDate; date++) {
       const d = dayjs(new Date(year, month, date));
@@ -79,8 +128,6 @@ const ScheduleScreen = () => {
       if (dow === 6) {
         // determine week index (0-based)
         const weekIndex = Math.ceil(date / 7) - 1;
-        const monthWeeks = Math.ceil(lastDate / 7);
-        const initWeeks = monthWeeks === 5 ? 3 : 2;
         let firstZone, secondZone;
         const offset = startOffsets[selectedIndex];
         if (offset === 1) {
