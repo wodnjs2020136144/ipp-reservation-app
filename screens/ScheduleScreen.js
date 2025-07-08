@@ -13,6 +13,14 @@ const isWeekend = dateStr => {
 
 const zones = ['인공지능', 'VR체험 및 수학체험센터', '로봇배움터'];
 
+const weekendZoneColors = {
+  인공지능: '#FFA726', // deep orange
+  'VR체험 및 수학체험센터': '#42A5F5', // vivid blue
+  로봇배움터: '#66BB6A', // medium green
+};
+
+const weekendBorderColor = '#8E24AA'; // purple for weekend entries
+
 const ScheduleScreen = () => {
   const [employees, setEmployees] = useState(['', '', '']);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -46,31 +54,88 @@ const ScheduleScreen = () => {
   };
 
   const today = dayjs();
-  // Generate valid dates for current month: exclude Mon(1), Sat(6), Sun(0)
+  // Generate schedule data with weekend logic
   const scheduleData = useMemo(() => {
     const list = [];
-    const year = today.year();
     const month = today.month();
-    let idx = 0;
-    for (let d = dayjs().date(1); d.month() === month; d = d.add(1, 'day')) {
+    const year = today.year();
+    const lastDate = dayjs(new Date(year, month + 1, 0)).date();
+    let weekdayCounter = 0;
+    for (let date = 1; date <= lastDate; date++) {
+      const d = dayjs(new Date(year, month, date));
       const dow = d.day();
-      if (dow === 1 || dow === 0 || dow === 6) continue;
-      list.push({
-        date: d.format('YYYY-MM-DD'),
-        zone: zones[(idx + startOffsets[selectedIndex]) % zones.length],
-      });
-      idx++;
+      // Skip Monday
+      if (dow === 1) continue;
+      // Weekday (Tue- Fri)
+      if (dow >= 2 && dow <= 5) {
+        list.push({
+          date: d.format('YYYY-MM-DD'),
+          zone: zones[(weekdayCounter + startOffsets[selectedIndex]) % zones.length],
+        });
+        weekdayCounter++;
+        continue;
+      }
+      // Saturday
+      if (dow === 6) {
+        // determine week index (0-based)
+        const weekIndex = Math.ceil(date / 7) - 1;
+        const monthWeeks = Math.ceil(lastDate / 7);
+        const initWeeks = monthWeeks === 5 ? 3 : 2;
+        let firstZone, secondZone;
+        const offset = startOffsets[selectedIndex];
+        if (offset === 1) {
+          if (weekIndex < initWeeks) {
+            firstZone = zones[0];
+            secondZone = zones[1];
+          } else {
+            firstZone = zones[1];
+            secondZone = zones[0];
+          }
+        } else if (offset === 2) {
+          if (weekIndex < initWeeks) {
+            firstZone = zones[1];
+            secondZone = zones[0];
+          } else {
+            firstZone = zones[0];
+            secondZone = zones[1];
+          }
+        }
+        if (offset !== 0) {
+          list.push({ date: d.format('YYYY-MM-DD'), zone: firstZone });
+          list.push({ date: d.format('YYYY-MM-DD'), zone: secondZone });
+        }
+        continue;
+      }
+      // Sunday
+      if (dow === 0) {
+        if (startOffsets[selectedIndex] === 0) {
+          list.push({ date: d.format('YYYY-MM-DD'), zone: zones[0] });
+          list.push({ date: d.format('YYYY-MM-DD'), zone: zones[1] });
+        }
+      }
     }
     return list;
   }, [selectedIndex, viewMode]);
 
-  // Week view filtered data
+  // Week view filtered data with weekend grouping
   const filteredData = useMemo(() => {
     if (viewMode !== 'week') return [];
-    return scheduleData.filter(item => {
+    const weekItems = scheduleData.filter(item => {
       const diff = dayjs(item.date).diff(today, 'day');
       return diff >= 0 && diff < 7;
     });
+    // group by date, combining weekend slots
+    const grouped = weekItems.reduce((acc, item) => {
+      const idx = acc.findIndex(x => x.date === item.date);
+      if (idx > -1) {
+        acc[idx].zones.push(item.zone);
+      } else {
+        acc.push({ date: item.date, zones: [item.zone] });
+      }
+      return acc;
+    }, []);
+    // sort by date
+    return grouped.sort((a, b) => dayjs(a.date).diff(dayjs(b.date)));
   }, [scheduleData, viewMode]);
 
   // Month view uses scheduleData for calendarData building
@@ -228,20 +293,33 @@ const ScheduleScreen = () => {
             <View
               style={[
                 styles.card,
-                { borderLeftColor: zoneColors[item.zone] || '#007aff' },
+                {
+                  borderLeftColor: isWeekend(item.date)
+                    ? weekendBorderColor
+                    : zoneColors[item.zones[0]],
+                },
               ]}
             >
               <Text style={styles.date}>
-                {`${item.date} (${['일', '월', '화', '수', '목', '금', '토'][new Date(item.date).getDay()]}요일)`}
+                {`${item.date} (${['일','월','화','수','목','금','토'][new Date(item.date).getDay()]}요일)`}
               </Text>
-              <Text
-                style={[
-                  styles.zone,
-                  { color: zoneColors[item.zone] || '#000' },
-                ]}
-              >
-                {isWeekend(item.date) ? `${item.zone}` : item.zone}
-              </Text>
+              <View style={styles.badgeContainer}>
+                {item.zones.map((z, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: isWeekend(item.date)
+                          ? weekendZoneColors[z]
+                          : zoneColors[z],
+                      },
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>{z}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
           ListEmptyComponent={<Text style={styles.empty}>스케줄이 없습니다.</Text>}
@@ -371,5 +449,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 8,
     marginBottom: 12,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  badge: {
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginRight: 6,
+  },
+  badgeText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });
