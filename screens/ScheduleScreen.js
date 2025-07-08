@@ -1,7 +1,7 @@
 // screens/ScheduleScreen.js
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button } from 'react-native';
+import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -56,8 +56,17 @@ const ScheduleScreen = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [inputName, setInputName] = useState('');
-  const [viewMode, setViewMode] = useState('week');
   const [monthOffset, setMonthOffset] = useState(0); // 0 = current month, up to 11 - baseMonth
+  const [weekOffset, setWeekOffset] = useState(0);
+  const weekScrollRef = useRef(null);
+
+  // Reset weekOffset to 0 whenever monthOffset changes
+  useEffect(() => {
+    setWeekOffset(0);
+    if (weekScrollRef.current) {
+      weekScrollRef.current.scrollTo({ x: 0, animated: false });
+    }
+  }, [monthOffset]);
 
   const [startOffsets, setStartOffsets] = useState([0, 0, 0]);
   const [tempOffset, setTempOffset] = useState(0);
@@ -101,6 +110,10 @@ const ScheduleScreen = () => {
   const displayYear = baseYear + Math.floor(displayMonthIndex / 12);
   const displayMonth = displayMonthIndex % 12;
   const today = dayjs();
+  // For weekly schedule base (start of week), depends on monthOffset
+  const baseStart = monthOffset === 0
+    ? today
+    : dayjs(new Date(displayYear, displayMonth, 1));
   // Generate schedule data with weekend logic, using displayMonth/displayYear
   const scheduleData = useMemo(() => {
     const list = [];
@@ -172,35 +185,12 @@ const ScheduleScreen = () => {
       }
     }
     return list;
-  }, [selectedIndex, viewMode, displayMonth, displayYear, startOffsets, monthOffset]);
-
-  // Week view filtered data with weekend grouping
-  const filteredData = useMemo(() => {
-    if (viewMode !== 'week') return [];
-    // For week view, show the week starting from today (current week, not displayMonth)
-    const weekItems = scheduleData.filter(item => {
-      const diff = dayjs(item.date).diff(today, 'day');
-      return diff >= 0 && diff < 7;
-    });
-    // group by date, combining weekend slots
-    const grouped = weekItems.reduce((acc, item) => {
-      const idx = acc.findIndex(x => x.date === item.date);
-      if (idx > -1) {
-        acc[idx].zones.push(item.zone);
-      } else {
-        acc.push({ date: item.date, zones: [item.zone] });
-      }
-      return acc;
-    }, []);
-    // sort by date
-    return grouped.sort((a, b) => dayjs(a.date).diff(dayjs(b.date)));
-  }, [scheduleData, viewMode, today]);
+  }, [selectedIndex, displayMonth, displayYear, startOffsets, monthOffset]);
 
   // Month view uses scheduleData for calendarData building
   const monthData = scheduleData;
 
   const calendarData = useMemo(() => {
-    if (viewMode !== 'month') return [];
     const year = displayYear;
     const month = displayMonth; // 0-index
     const firstDay = dayjs(new Date(year, month, 1)).day(); // 0 (Sun)~6
@@ -224,7 +214,7 @@ const ScheduleScreen = () => {
       cells.push({ empty: true, key: `e${cells.length}` });
     }
     return cells;
-  }, [viewMode, monthData, displayYear, displayMonth]);
+  }, [monthData, displayYear, displayMonth]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -284,120 +274,115 @@ const ScheduleScreen = () => {
         ))}
       </View>
 
-      <View style={styles.viewToggle}>
-        <TouchableOpacity
-          style={[styles.iconToggle, viewMode === 'week' && styles.iconToggleActive]}
-          onPress={() => setViewMode('week')}
-        >
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={viewMode === 'week' ? '#fff' : '#888'}
-            style={{ marginRight: 4 }}
-          />
-          <Text style={[styles.iconText, viewMode === 'week' && styles.iconTextActive]}>
-            주간
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.iconToggle, viewMode === 'month' && styles.iconToggleActive]}
-          onPress={() => setViewMode('month')}
-        >
-          <Ionicons
-            name="calendar"
-            size={16}
-            color={viewMode === 'month' ? '#fff' : '#888'}
-            style={{ marginRight: 4 }}
-          />
-          <Text style={[styles.iconText, viewMode === 'month' && styles.iconTextActive]}>
-            월간
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Monthly calendar always shown */}
+      <View style={styles.calendarCard}>
+        <View style={styles.weekHeader}>
+          {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+            <Text key={day} style={styles.weekHeaderCell}>
+              {day}
+            </Text>
+          ))}
+        </View>
 
-      {viewMode === 'month' ? (
-        <>
-          {/* Month label is now in headerRow; omit here */}
-          <View style={styles.calendarCard}>
-            <View style={styles.weekHeader}>
-              {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                <Text key={day} style={styles.weekHeaderCell}>
-                  {day}
-                </Text>
-              ))}
-            </View>
-
-            <View style={styles.calendar}>
-              {calendarData.map(cell =>
-                cell.empty ? (
-                  <View key={cell.key} style={styles.calCellEmpty} />
-                ) : (
-                  <View
-                    key={cell.key}
+        <View style={styles.calendar}>
+          {calendarData.map(cell =>
+            cell.empty ? (
+              <View key={cell.key} style={styles.calCellEmpty} />
+            ) : (
+              <View
+                key={cell.key}
+                style={[
+                  styles.calCell,
+                  isWeekend(cell.date) && styles.calCellWeekend,
+                ]}
+              >
+                <Text style={styles.calDate}>{cell.day}</Text>
+                {cell.schedules.map((sch, idx) => (
+                  <Text
+                    key={idx}
                     style={[
-                      styles.calCell,
-                      isWeekend(cell.date) && styles.calCellWeekend,
+                      styles.calDetail,
+                      { color: zoneColors[sch.zone] || '#000' },
                     ]}
                   >
-                    <Text style={styles.calDate}>{cell.day}</Text>
-                    {cell.schedules.map((sch, idx) => (
-                      <Text
-                        key={idx}
-                        style={[
-                          styles.calDetail,
-                          { color: zoneColors[sch.zone] || '#000' },
-                        ]}
-                      >
-                        {sch.label}
-                      </Text>
-                    ))}
-                  </View>
-                )
-              )}
-            </View>
-          </View>
-        </>
-      ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={item => item.date}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.card,
-                {
-                  borderLeftColor: isWeekend(item.date)
-                    ? weekendBorderColor
-                    : zoneColors[item.zones[0]],
-                },
-              ]}
-            >
-              <Text style={styles.date}>
-                {`${item.date} (${['일','월','화','수','목','금','토'][new Date(item.date).getDay()]}요일)`}
-              </Text>
-              <View style={styles.badgeContainer}>
-                {item.zones.map((z, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.badge,
-                      {
-                        backgroundColor: isWeekend(item.date)
-                          ? weekendZoneColors[z]
-                          : zoneColors[z],
-                      },
-                    ]}
-                  >
-                    <Text style={styles.badgeText}>{z}</Text>
-                  </View>
+                    {sch.label}
+                  </Text>
                 ))}
               </View>
-            </View>
+            )
           )}
-          ListEmptyComponent={<Text style={styles.empty}>스케줄이 없습니다.</Text>}
-          contentContainerStyle={{ paddingBottom: 32 }}
-        />
-      )}
+        </View>
+      </View>
+
+      {/* Weekly schedule for current month */}
+      <View style={styles.weekHeaderRow}>
+        <TouchableOpacity
+          onPress={() => setWeekOffset(w => w - 1)}
+          disabled={weekOffset === 0}
+        >
+          <Ionicons name="chevron-back" size={20} color={weekOffset === 0 ? '#CCC' : '#000'} />
+        </TouchableOpacity>
+        <Text style={styles.weekRangeText}>
+          {baseStart.add(weekOffset * 7, 'day').format('MM/DD')} - {baseStart.add(weekOffset * 7 + 6, 'day').format('MM/DD')}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setWeekOffset(w => w + 1)}
+          disabled={
+            (() => {
+              // Compute last date of the display month
+              const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
+              // Find the last Sunday ON or BEFORE end of month
+              let lastSunday = lastDateInMonth;
+              while (lastSunday.day() !== 0) {
+                lastSunday = lastSunday.subtract(1, 'day');
+              }
+              // The next week's start date
+              const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
+              // If nextWeekStart > lastSunday, disable
+              return nextWeekStart.isAfter(lastSunday, 'day');
+            })()
+          }
+        >
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={
+              (() => {
+                const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
+                let lastSunday = lastDateInMonth;
+                while (lastSunday.day() !== 0) {
+                  lastSunday = lastSunday.subtract(1, 'day');
+                }
+                const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
+                return nextWeekStart.isAfter(lastSunday, 'day') ? '#CCC' : '#000';
+              })()
+            }
+          />
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.weekGrid}
+        ref={weekScrollRef}
+      >
+        {Array.from({ length: 7 }).map((_, i) => {
+          // Use baseStart for week view
+          const d = baseStart.add(weekOffset * 7 + i, 'day');
+          const dateStr = d.format('YYYY-MM-DD');
+          const zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+          return (
+            <View key={dateStr} style={[styles.weekCell, dateStr === today.format('YYYY-MM-DD') && styles.weekCellToday]}>
+              <Text style={styles.weekCellDate}>{d.format('MM/DD (dd)')}</Text>
+              {zonesForDay.map((z, idx) => (
+                <View key={idx} style={[styles.badge, { backgroundColor: zoneColors[z] }]}>
+                  <Text style={styles.badgeText}>{z}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        })}
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -562,4 +547,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
+  weekHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#ddd',
+  },
+  weekNavButton: { padding: 6 },
+  weekRangeText: { fontSize: 16, fontWeight: '600' },
+  weekGrid: { paddingVertical: 12, paddingHorizontal: 10 },
+  weekCell: {
+    width: 100, marginRight: 12, backgroundColor: '#fff', borderRadius: 8,
+    padding: 8, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 2,
+  },
+  weekCellToday: { borderColor: '#007aff', borderWidth: 2 },
+  weekCellDate: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
 });
