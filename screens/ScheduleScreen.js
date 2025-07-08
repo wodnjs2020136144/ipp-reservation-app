@@ -1,7 +1,7 @@
 // screens/ScheduleScreen.js
 import React, { useState, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button } from 'react-native';
+import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -216,7 +216,13 @@ const ScheduleScreen = () => {
   }, [viewMode, monthData]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>스케줄</Text>
+        <TouchableOpacity onPress={() => {/* refresh logic if needed */}} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={18} color="#007AFF" />
+        </TouchableOpacity>
+      </View>
       <Modal visible={modalVisible} transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -373,7 +379,7 @@ const ScheduleScreen = () => {
           contentContainerStyle={{ paddingBottom: 32 }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -386,13 +392,38 @@ const zoneColors = {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60, paddingHorizontal: 20, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#fff' },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: '#DDD',
+    backgroundColor: '#FFF',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000',
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   selector: { flexDirection: 'row', marginBottom: 8, borderBottomWidth: 1, borderColor: '#ddd' },
   card: {
     padding: 16,
     borderRadius: 12,
     backgroundColor: '#fff',
-    marginBottom: 12,
+    marginVertical: 8,
+    marginHorizontal: 20,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 1 },
