@@ -401,12 +401,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 36,
+    height: 36,
     borderWidth: 1,
-    borderColor: '#007aff',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderColor: '#007AFF',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -72,7 +72,7 @@ const HomeScreen = () => {
       <View style={styles.headerRow}>
         <Text style={styles.title}>{todayString} 예약 정보</Text>
         <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={16} color="#007aff" />
+          <Ionicons name="refresh" size={18} color="#007AFF" />
         </TouchableOpacity>
       </View>
 
@@ -111,13 +111,27 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   refreshButton: {
-    padding: 6,
+    width: 36,
+    height: 36,
     borderWidth: 1,
     borderColor: '#007AFF',
-    borderRadius: 16,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  groupCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 },
+  groupCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333' },
   emptyText: { textAlign: 'center', fontSize: 16, marginTop: 10, color: '#888' },
-  scrollContent: { paddingBottom: 40, paddingHorizontal: 4 },
+  scrollContent: { paddingBottom: 40, paddingHorizontal: 0 },
 });
