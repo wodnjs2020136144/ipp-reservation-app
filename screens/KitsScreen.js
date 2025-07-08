@@ -182,24 +182,25 @@ const createLog = (name, action) => {
       </View>
 
       <View style={styles.kitButtons}>
-        <TouchableOpacity onPress={() => changeQuantity(item.id, -1)} style={styles.button}>
-          <Text style={styles.btnText}>-</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => changeQuantity(item.id, 1)} style={styles.button}>
-          <Text style={styles.btnText}>+</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => deleteKit(item.id)} style={styles.deleteButton}>
-          <Ionicons name="trash-outline" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.repairRow}>
-        <Text style={styles.repairLabel}>수리 중</Text>
-        <Switch
-          value={item.repairing || false}
-          onValueChange={() => toggleRepair(item.id)}
-          style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-        />
+        <View style={styles.repairRow}>
+          <Text style={styles.repairLabel}>수리 중</Text>
+          <Switch
+            value={item.repairing || false}
+            onValueChange={() => toggleRepair(item.id)}
+            style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+          />
+        </View>
+        <View style={styles.buttonGroup}>
+          <TouchableOpacity onPress={() => changeQuantity(item.id, -1)} style={styles.button}>
+            <Text style={styles.btnText}>-</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => changeQuantity(item.id, 1)} style={styles.button}>
+            <Text style={styles.btnText}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => deleteKit(item.id)} style={styles.deleteButton}>
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.memoRow}>
@@ -357,11 +358,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#333',
   },
-  kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+  kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, alignItems: 'center' },
+  buttonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
   button: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
   deleteButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ff3b30', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  repairRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  repairRow: { flexDirection: 'row', alignItems: 'center' },
   repairLabel: { fontSize: 14, marginRight: 10 },
   memoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   memoInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8, fontSize: 14, minHeight: 40 },
