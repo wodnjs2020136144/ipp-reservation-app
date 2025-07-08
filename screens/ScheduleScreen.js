@@ -1,7 +1,9 @@
 // screens/ScheduleScreen.js
-import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
+import dayjs from 'dayjs';
 
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
@@ -9,80 +11,77 @@ const isWeekend = dateStr => {
   return day === 0 || day === 6; // Sunday(0) or Saturday(6)
 };
 
-const dummy = {
-  김무현: [
-    { id: '1', date: '2025-07-08', period: '오전', zone: '인공지능' },
-    { id: '2', date: '2025-07-09', period: '오후', zone: 'VR체험 및 수학체험센터' },
-  ],
-  김운빈: [
-    { id: '3', date: '2025-07-08', period: '오전', zone: 'VR체험 및 수학체험센터' },
-    { id: '4', date: '2025-07-10', period: '오후', zone: '로봇배움터' },
-  ],
-  황재원: [
-    { id: '5', date: '2025-07-08', period: '오전', zone: '로봇배움터' },
-    { id: '6', date: '2025-07-11', period: '오후', zone: '인공지능' },
-  ],
-};
-
-const zoneColors = {
-  인공지능: '#FFB74D', // orange
-  'VR체험 및 수학체험센터': '#4FC3F7', // light blue
-  로봇배움터: '#81C784', // green
-};
-
-const weekdayNames = ['일', '월', '화', '수', '목', '금', '토'];
-
-const people = ['김무현', '김운빈', '황재원'];
+const zones = ['인공지능', 'VR체험 및 수학체험센터', '로봇배움터'];
 
 const ScheduleScreen = () => {
-  const [selected, setSelected] = useState('김무현');
-  const [viewMode, setViewMode] = useState('week'); // 'week' 또는 'month'
+  const [employees, setEmployees] = useState(['', '', '']);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [inputName, setInputName] = useState('');
+  const [viewMode, setViewMode] = useState('week');
 
-  const renderItem = ({ item }) => (
-    <View
-      style={[
-        styles.card,
-        { borderLeftColor: zoneColors[item.zone] || '#007aff' },
-      ]}
-    >
-      <Text style={styles.date}>
-        {`${item.date} (${weekdayNames[new Date(item.date).getDay()]}요일)`}
-      </Text>
-      {item.name && <Text style={styles.name}>{item.name}</Text>}
-      <Text
-        style={[
-          styles.zone,
-          { color: zoneColors[item.zone] || '#000' },
-        ]}
-      >
-        {isWeekend(item.date) ? `${item.period} ${item.zone}` : item.zone}
-      </Text>
-    </View>
-  );
+  const [startOffsets, setStartOffsets] = useState([0, 0, 0]);
+  const [tempOffset, setTempOffset] = useState(0);
 
-  const today = new Date();
-  const monthData = useMemo(() => {
-    if (viewMode !== 'month') return [];
-    const items = [];
-    dummy[selected].forEach(it => {
-      const d = new Date(it.date);
-      if (
-        d.getFullYear() === today.getFullYear() &&
-        d.getMonth() === today.getMonth()
-      ) {
-        items.push(it); // {id, date, period, zone}
-      }
+  useEffect(() => {
+    if (modalVisible) {
+      setInputName(employees[selectedIndex] || '');
+      setTempOffset(startOffsets[selectedIndex] || 0);
+    }
+  }, [modalVisible]);
+
+  // Handle name input
+  const onSelectTab = index => {
+    setSelectedIndex(index);
+  };
+
+  const saveName = () => {
+    const newEmps = [...employees];
+    newEmps[selectedIndex] = inputName.trim();
+    setEmployees(newEmps);
+    const newOffsets = [...startOffsets];
+    newOffsets[selectedIndex] = tempOffset;
+    setStartOffsets(newOffsets);
+    setModalVisible(false);
+  };
+
+  const today = dayjs();
+  // Generate valid dates for current month: exclude Mon(1), Sat(6), Sun(0)
+  const scheduleData = useMemo(() => {
+    const list = [];
+    const year = today.year();
+    const month = today.month();
+    let idx = 0;
+    for (let d = dayjs().date(1); d.month() === month; d = d.add(1, 'day')) {
+      const dow = d.day();
+      if (dow === 1 || dow === 0 || dow === 6) continue;
+      list.push({
+        date: d.format('YYYY-MM-DD'),
+        zone: zones[(idx + startOffsets[selectedIndex]) % zones.length],
+      });
+      idx++;
+    }
+    return list;
+  }, [selectedIndex, viewMode]);
+
+  // Week view filtered data
+  const filteredData = useMemo(() => {
+    if (viewMode !== 'week') return [];
+    return scheduleData.filter(item => {
+      const diff = dayjs(item.date).diff(today, 'day');
+      return diff >= 0 && diff < 7;
     });
-    items.sort((a, b) => new Date(a.date) - new Date(b.date));
-    return items;
-  }, [viewMode, selected]);
+  }, [scheduleData, viewMode]);
+
+  // Month view uses scheduleData for calendarData building
+  const monthData = scheduleData;
 
   const calendarData = useMemo(() => {
     if (viewMode !== 'month') return [];
-    const year = today.getFullYear();
-    const month = today.getMonth(); // 0-index
-    const firstDay = new Date(year, month, 1).getDay(); // 0 (Sun)~6
-    const lastDate = new Date(year, month + 1, 0).getDate();
+    const year = today.year();
+    const month = today.month(); // 0-index
+    const firstDay = dayjs(new Date(year, month, 1)).day(); // 0 (Sun)~6
+    const lastDate = dayjs(new Date(year, month + 1, 0)).date();
 
     const cells = [];
     for (let i = 0; i < firstDay; i++) {
@@ -93,7 +92,7 @@ const ScheduleScreen = () => {
       const schedules = monthData
         .filter(it => it.date === dateStr)
         .map(it => ({
-          label: isWeekend(it.date) ? `${it.period} ${it.zone}` : it.zone,
+          label: isWeekend(it.date) ? `${it.zone}` : it.zone,
           zone: it.zone,
         }));
       cells.push({ day: d, date: dateStr, schedules, key: dateStr });
@@ -102,42 +101,44 @@ const ScheduleScreen = () => {
       cells.push({ empty: true, key: `e${cells.length}` });
     }
     return cells;
-  }, [viewMode, monthData, isWeekend]);
-
-  const filteredData = dummy[selected].filter(item => {
-    const date = new Date(item.date);
-    if (viewMode === 'week') {
-      const diff = (date - today) / 86400000; // 일 단위 차이
-      return diff >= 0 && diff < 7;
-    }
-    if (viewMode === 'month') {
-      return (
-        date.getFullYear() === today.getFullYear() &&
-        date.getMonth() === today.getMonth()
-      );
-    }
-    return true;
-  });
+  }, [viewMode, monthData]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.selector}>
-        {people.map(name => (
-          <TouchableOpacity
-            key={name}
-            style={[
-              styles.navItem,
-              selected === name && styles.navItemActive,
-            ]}
-            onPress={() => setSelected(name)}
-          >
-            <Text
-              style={[
-                styles.navText,
-                selected === name && styles.navTextActive,
-              ]}
+      <Modal visible={modalVisible} transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <TextInput
+              placeholder="직원 이름 입력"
+              value={inputName}
+              onChangeText={setInputName}
+              style={styles.input}
+            />
+            <Text style={{ marginBottom: 8 }}>첫날 직무 선택</Text>
+            <Picker
+              selectedValue={tempOffset}
+              onValueChange={setTempOffset}
+              style={{ marginBottom: 12 }}
             >
-              {name}
+              {zones.map((z, i) => (
+                <Picker.Item key={z} label={z} value={i} />
+              ))}
+            </Picker>
+            <Button title="저장" onPress={saveName} />
+          </View>
+        </View>
+      </Modal>
+
+      <View style={styles.selector}>
+        {employees.map((name, idx) => (
+          <TouchableOpacity
+            key={idx}
+            style={[styles.navItem, selectedIndex === idx && styles.navItemActive]}
+            onPress={() => onSelectTab(idx)}
+            onLongPress={() => setModalVisible(true)}
+          >
+            <Text style={[styles.navText, selectedIndex === idx && styles.navTextActive]}>
+              {name || `직원 ${idx + 1}`}
             </Text>
           </TouchableOpacity>
         ))}
@@ -177,7 +178,7 @@ const ScheduleScreen = () => {
       {viewMode === 'month' ? (
         <>
           <Text style={styles.monthLabel}>
-            {today.getFullYear()}년 {String(today.getMonth() + 1).padStart(2, '0')}월
+            {today.year()}년 {String(today.month() + 1).padStart(2, '0')}월
           </Text>
 
           <View style={styles.calendarCard}>
@@ -222,8 +223,27 @@ const ScheduleScreen = () => {
       ) : (
         <FlatList
           data={filteredData}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
+          keyExtractor={item => item.date}
+          renderItem={({ item }) => (
+            <View
+              style={[
+                styles.card,
+                { borderLeftColor: zoneColors[item.zone] || '#007aff' },
+              ]}
+            >
+              <Text style={styles.date}>
+                {`${item.date} (${['일', '월', '화', '수', '목', '금', '토'][new Date(item.date).getDay()]}요일)`}
+              </Text>
+              <Text
+                style={[
+                  styles.zone,
+                  { color: zoneColors[item.zone] || '#000' },
+                ]}
+              >
+                {isWeekend(item.date) ? `${item.zone}` : item.zone}
+              </Text>
+            </View>
+          )}
           ListEmptyComponent={<Text style={styles.empty}>스케줄이 없습니다.</Text>}
           contentContainerStyle={{ paddingBottom: 32 }}
         />
@@ -233,6 +253,12 @@ const ScheduleScreen = () => {
 };
 
 export default ScheduleScreen;
+
+const zoneColors = {
+  인공지능: '#FFB74D', // orange
+  'VR체험 및 수학체험센터': '#4FC3F7', // light blue
+  로봇배움터: '#81C784', // green
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 60, paddingHorizontal: 20, backgroundColor: '#fff' },
@@ -250,7 +276,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
   },
   date: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  name: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
   zone: { fontSize: 14, fontWeight: '600' }, // override earlier zone style
   empty: { textAlign: 'center', marginTop: 20, color: '#888' },
   viewToggle: { flexDirection: 'row', marginBottom: 12, justifyContent: 'center' },
@@ -307,7 +332,6 @@ const styles = StyleSheet.create({
   },
   calCellWeekend: { backgroundColor: '#F1F7FF' }, /* subtle light‑blue tint */
   calDate: { fontSize: 12, fontWeight: '700' },
-  calName: { fontSize: 10 },
   calDetail: { fontSize: 10 },
   weekHeader: { flexDirection: 'row' },
   weekHeaderCell: {
@@ -328,4 +352,24 @@ const styles = StyleSheet.create({
   },
   navText: { fontSize: 15, color: '#555', fontWeight: '600' },
   navTextActive: { color: '#007aff' },
+
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 8,
+    width: '80%',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 8,
+    marginBottom: 12,
+  },
 });
