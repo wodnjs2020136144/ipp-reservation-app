@@ -40,7 +40,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     loadData();                                // 최초
-    const id = setInterval(loadData, 30_000);  // 30초 주기 새로고침
+    const id = setInterval(loadData, 60_000);  // 1 분 주기 새로고침
     return () => clearInterval(id);
   }, []);
 
