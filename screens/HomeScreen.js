@@ -1,15 +1,6 @@
 // screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
@@ -76,32 +67,26 @@ const HomeScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-    >
-      <View style={styles.container}>
-        {/* 헤더 */}
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{todayString} 예약 정보</Text>
-          <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={18} color="#007aff" />
-            <Text style={styles.refreshText}>새로고침</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 본문 */}
-        {loading ? (
-          <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {renderGroup('인공지능 로봇 배움터', reservations.ai, 'ai')}
-            {renderGroup('지진 VR', reservations.earthquake, 'earthquake')}
-            {renderGroup('드론 VR', reservations.drone, 'drone')}
-          </ScrollView>
-        )}
+    <SafeAreaView style={styles.container}>
+      {/* 헤더 */}
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{todayString} 예약 정보</Text>
+        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={16} color="#007aff" />
+        </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+
+      {/* 본문 */}
+      {loading ? (
+        <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {renderGroup('인공지능 로봇 배움터', reservations.ai, 'ai')}
+          {renderGroup('지진 VR', reservations.earthquake, 'earthquake')}
+          {renderGroup('드론 VR', reservations.drone, 'drone')}
+        </ScrollView>
+      )}
+    </SafeAreaView>
   );
 };
 
@@ -109,11 +94,28 @@ export default HomeScreen;
 
 /* --- styles 그대로 --- */
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60, paddingHorizontal: 20, backgroundColor: '#fff' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  title: { fontSize: 20, fontWeight: 'bold' },
-  refreshButton: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#007aff', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  refreshText: { color: '#007aff', fontWeight: '500', marginLeft: 6, fontSize: 14 },
+  container: { flex: 1, backgroundColor: '#fff' },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderColor: '#DDD',
+    backgroundColor: '#FFF',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000',
+  },
+  refreshButton: {
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 16,
+  },
   groupCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333' },
   emptyText: { textAlign: 'center', fontSize: 16, marginTop: 10, color: '#888' },
