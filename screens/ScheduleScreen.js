@@ -57,6 +57,7 @@ const ScheduleScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [inputName, setInputName] = useState('');
   const [viewMode, setViewMode] = useState('week');
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = current month, up to 11 - baseMonth
 
   const [startOffsets, setStartOffsets] = useState([0, 0, 0]);
   const [tempOffset, setTempOffset] = useState(0);
@@ -92,12 +93,19 @@ const ScheduleScreen = () => {
     setModalVisible(false);
   };
 
+  // Compute displayed month/year based on offset
+  const base = dayjs();
+  const baseMonth = base.month();      // zero-based
+  const baseYear = base.year();
+  const displayMonthIndex = baseMonth + monthOffset;
+  const displayYear = baseYear + Math.floor(displayMonthIndex / 12);
+  const displayMonth = displayMonthIndex % 12;
   const today = dayjs();
-  // Generate schedule data with weekend logic
+  // Generate schedule data with weekend logic, using displayMonth/displayYear
   const scheduleData = useMemo(() => {
     const list = [];
-    const month = today.month();
-    const year = today.year();
+    const month = displayMonth;
+    const year = displayYear;
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
     // Collect all Saturdays in the month
     const saturdayDates = [];
@@ -110,6 +118,8 @@ const ScheduleScreen = () => {
     // Determine initial non-swapping weeks: if 5 saturdays, first 3; if 4 saturdays, first 2
     const initWeeks = saturdayCount === 5 ? 3 : 2;
     let weekdayCounter = 0;
+    // effective weekend offset shifts by monthOffset each month, reversed direction
+    const effOffset = ((startOffsets[selectedIndex] - monthOffset) % zones.length + zones.length) % zones.length;
     for (let date = 1; date <= lastDate; date++) {
       const d = dayjs(new Date(year, month, date));
       const dow = d.day();
@@ -119,7 +129,7 @@ const ScheduleScreen = () => {
       if (dow >= 2 && dow <= 5) {
         list.push({
           date: d.format('YYYY-MM-DD'),
-          zone: zones[(weekdayCounter + startOffsets[selectedIndex]) % zones.length],
+          zone: zones[(weekdayCounter + effOffset) % zones.length],
         });
         weekdayCounter++;
         continue;
@@ -129,7 +139,7 @@ const ScheduleScreen = () => {
         // determine week index (0-based)
         const weekIndex = Math.ceil(date / 7) - 1;
         let firstZone, secondZone;
-        const offset = startOffsets[selectedIndex];
+        const offset = effOffset;
         if (offset === 1) {
           if (weekIndex < initWeeks) {
             firstZone = zones[0];
@@ -155,18 +165,19 @@ const ScheduleScreen = () => {
       }
       // Sunday
       if (dow === 0) {
-        if (startOffsets[selectedIndex] === 0) {
+        if (effOffset === 0) {
           list.push({ date: d.format('YYYY-MM-DD'), zone: zones[0] });
           list.push({ date: d.format('YYYY-MM-DD'), zone: zones[1] });
         }
       }
     }
     return list;
-  }, [selectedIndex, viewMode]);
+  }, [selectedIndex, viewMode, displayMonth, displayYear, startOffsets, monthOffset]);
 
   // Week view filtered data with weekend grouping
   const filteredData = useMemo(() => {
     if (viewMode !== 'week') return [];
+    // For week view, show the week starting from today (current week, not displayMonth)
     const weekItems = scheduleData.filter(item => {
       const diff = dayjs(item.date).diff(today, 'day');
       return diff >= 0 && diff < 7;
@@ -183,15 +194,15 @@ const ScheduleScreen = () => {
     }, []);
     // sort by date
     return grouped.sort((a, b) => dayjs(a.date).diff(dayjs(b.date)));
-  }, [scheduleData, viewMode]);
+  }, [scheduleData, viewMode, today]);
 
   // Month view uses scheduleData for calendarData building
   const monthData = scheduleData;
 
   const calendarData = useMemo(() => {
     if (viewMode !== 'month') return [];
-    const year = today.year();
-    const month = today.month(); // 0-index
+    const year = displayYear;
+    const month = displayMonth; // 0-index
     const firstDay = dayjs(new Date(year, month, 1)).day(); // 0 (Sun)~6
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
 
@@ -213,14 +224,25 @@ const ScheduleScreen = () => {
       cells.push({ empty: true, key: `e${cells.length}` });
     }
     return cells;
-  }, [viewMode, monthData]);
+  }, [viewMode, monthData, displayYear, displayMonth]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>스케줄</Text>
-        <TouchableOpacity onPress={() => {/* refresh logic if needed */}} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={18} color="#007AFF" />
+        <TouchableOpacity
+          disabled={monthOffset === 0}
+          onPress={() => setMonthOffset(prev => prev - 1)}
+        >
+          <Ionicons name="chevron-back" size={24} color={monthOffset === 0 ? '#CCC' : '#000'} />
+        </TouchableOpacity>
+        <Text style={styles.title}>
+          {displayYear}년 {String(displayMonth + 1).padStart(2, '0')}월
+        </Text>
+        <TouchableOpacity
+          disabled={monthOffset === (11 - baseMonth)}
+          onPress={() => setMonthOffset(prev => prev + 1)}
+        >
+          <Ionicons name="chevron-forward" size={24} color={monthOffset === (11 - baseMonth) ? '#CCC' : '#000'} />
         </TouchableOpacity>
       </View>
       <Modal visible={modalVisible} transparent>
@@ -295,10 +317,7 @@ const ScheduleScreen = () => {
 
       {viewMode === 'month' ? (
         <>
-          <Text style={styles.monthLabel}>
-            {today.year()}년 {String(today.month() + 1).padStart(2, '0')}월
-          </Text>
-
+          {/* Month label is now in headerRow; omit here */}
           <View style={styles.calendarCard}>
             <View style={styles.weekHeader}>
               {['일', '월', '화', '수', '목', '금', '토'].map(day => (
