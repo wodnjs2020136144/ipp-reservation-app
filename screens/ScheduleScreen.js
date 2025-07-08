@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView } from 'react-native';
+import { StatusBar, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -396,7 +397,12 @@ const zoneColors = {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingBottom: 80,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -553,7 +559,7 @@ const styles = StyleSheet.create({
   },
   weekNavButton: { padding: 6 },
   weekRangeText: { fontSize: 16, fontWeight: '600' },
-  weekGrid: { paddingVertical: 12, paddingHorizontal: 10 },
+  weekGrid: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 80, marginTop: 8 },
   weekCell: {
     width: 100, marginRight: 12, backgroundColor: '#fff', borderRadius: 8,
     padding: 8, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05,

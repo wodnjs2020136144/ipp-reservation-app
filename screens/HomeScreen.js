@@ -1,6 +1,6 @@
 // screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
@@ -94,13 +94,18 @@ export default HomeScreen;
 
 /* --- styles 그대로 --- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingHorizontal: 20,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     borderBottomWidth: 1,
     borderColor: '#DDD',
     backgroundColor: '#FFF',
@@ -133,5 +138,5 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333' },
   emptyText: { textAlign: 'center', fontSize: 16, marginTop: 10, color: '#888' },
-  scrollContent: { paddingBottom: 40, paddingHorizontal: 0 },
+  scrollContent: { paddingBottom: 80, paddingHorizontal: 0 },
 });
