@@ -73,7 +73,7 @@ const KitsScreen = () => {
   };
 
 const createLog = (name, action) => {
-  const now = dayjs().utcOffset(9);  // apply +9 hour offset for KST
+  const now = dayjs();    // local time
   const timestamp = now.format('HH:mm');
   const date = now.format('YYYY-MM-DD');
   return `[${date} ${timestamp}] ${name} ${action}`;
