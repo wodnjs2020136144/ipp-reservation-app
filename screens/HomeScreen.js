@@ -1,6 +1,6 @@
 // screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
@@ -12,6 +12,15 @@ const HomeScreen = () => {
     drone: [],
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    // wait for release bounce, then refresh
+    setTimeout(async () => {
+      await loadData();
+      setRefreshing(false);
+    }, 500);
+  };
 
   const todayString = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric',
@@ -80,7 +89,21 @@ const HomeScreen = () => {
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          overScrollMode={Platform.OS === 'android' ? 'never' : undefined}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          bounces={true}
+          alwaysBounceVertical={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#007aff']}
+              progressBackgroundColor="#fff"
+            />
+          }
+        >
           {renderGroup('인공지능 로봇 배움터', reservations.ai, 'ai')}
           {renderGroup('지진 VR', reservations.earthquake, 'earthquake')}
           {renderGroup('드론 VR', reservations.drone, 'drone')}
