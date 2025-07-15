@@ -245,23 +245,22 @@ const createLog = (name, action) => {
 
       <View style={{ height: 16 }} />
 
+      <View style={styles.addKitRow}>
+        <TextInput
+          style={styles.addKitInput}
+          placeholder="새 교구 이름 입력"
+          value={newKitName}
+          onChangeText={setNewKitName}
+        />
+        <TouchableOpacity onPress={addNewKit} style={styles.addKitButton}>
+          <Ionicons name="add" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
         <FlatList
-          ListHeaderComponent={() => (
-            <View style={styles.addKitRow}>
-              <TextInput
-                style={styles.addKitInput}
-                placeholder="새 교구 이름 입력"
-                value={newKitName}
-                onChangeText={setNewKitName}
-              />
-              <TouchableOpacity onPress={addNewKit} style={styles.addKitButton}>
-                <Ionicons name="add" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
           data={kits}
           renderItem={renderKit}
           keyExtractor={(item) => item.id}
