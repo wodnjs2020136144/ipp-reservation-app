@@ -275,6 +275,8 @@ const ScheduleScreen = () => {
         ))}
       </View>
 
+      <ScrollView style={styles.verticalScroll} contentContainerStyle={{ paddingBottom: 80 }}>
+
       {/* Monthly calendar always shown */}
       <View style={styles.calendarCard}>
         <View style={styles.weekHeader}>
@@ -384,6 +386,7 @@ const ScheduleScreen = () => {
             </View>
           );
         })}
+      </ScrollView>
       </ScrollView>
     </SafeAreaView>
   );
@@ -562,7 +565,7 @@ const styles = StyleSheet.create({
   },
   weekNavButton: { padding: 6 },
   weekRangeText: { fontSize: 16, fontWeight: '600' },
-  weekGrid: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 80, marginTop: 8 },
+  weekGrid: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 80, marginTop: 8, flexWrap: 'nowrap' },
   weekCell: {
     minWidth: 120,
     marginRight: 10,
@@ -586,4 +589,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   weekCellDate: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
+  verticalScroll: {
+    flex: 1,
+  },
 });
