@@ -18,22 +18,27 @@ const ReservationItem = ({ time, status, remaining, total }) => {
 const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
   time: {
     fontSize: 16,
+    flex: 1,
+    textAlign: 'left',
   },
   status: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#007aff',
+    flex: 1,
+    textAlign: 'center',
   },
   remaining: {
     fontSize: 16,
     color: '#555',
+    flex: 1,
+    textAlign: 'right',
   },
 });
 
