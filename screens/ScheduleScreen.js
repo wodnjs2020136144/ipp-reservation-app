@@ -295,6 +295,7 @@ const ScheduleScreen = () => {
                 style={[
                   styles.calCell,
                   isWeekend(cell.date) && styles.calCellWeekend,
+                  cell.date === today.format('YYYY-MM-DD') && styles.calCellToday,
                 ]}
               >
                 <Text style={styles.calDate}>{cell.day}</Text>
@@ -566,5 +567,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 2,
   },
   weekCellToday: { borderColor: '#007aff', borderWidth: 2 },
+  calCellToday: {
+    borderColor: '#007AFF',
+    borderWidth: 2,
+  },
   weekCellDate: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
 });
