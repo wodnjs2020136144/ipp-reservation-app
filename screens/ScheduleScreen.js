@@ -325,13 +325,24 @@ const ScheduleScreen = () => {
             <Picker
               selectedValue={tempOffset}
               onValueChange={setTempOffset}
-              style={{ marginBottom: 12 }}
+              style={{ marginBottom: 12, color: '#000' }}   // 글씨 보이도록 색 지정
             >
               {zones.map((z, i) => (
-                <Picker.Item key={z} label={z} value={i} />
+                <Picker.Item key={z} label={z} value={i} color="#000" />
               ))}
             </Picker>
-            <Button title="저장" onPress={saveName} />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <TouchableOpacity style={styles.modalButton} onPress={saveName}>
+                <Text style={styles.modalButtonText}>저장</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: '#ccc' }]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>취소</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
