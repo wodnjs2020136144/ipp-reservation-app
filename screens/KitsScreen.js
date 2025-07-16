@@ -125,10 +125,18 @@ const createLog = (name, action) => {
   };
 
   const addNewKit = async () => {
-    if (!newKitName.trim()) return;
+    const trimmed = newKitName.trim();
+    if (!trimmed) {
+      Alert.alert('오류', '교구 이름을 입력해주세요.');
+      return;
+    }
+    if (kits.some(k => k.name === trimmed)) {
+      Alert.alert('오류', '이미 존재하는 교구 이름입니다.');
+      return;
+    }
     const newKit = {
       id: uuid.v4(),
-      name: newKitName.trim(),
+      name: trimmed,
       quantity: 0,
       repairing: false,
       memo: '',
