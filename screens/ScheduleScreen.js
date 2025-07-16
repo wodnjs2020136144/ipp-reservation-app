@@ -7,7 +7,7 @@ import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
@@ -65,6 +65,34 @@ const ScheduleScreen = () => {
         console.warn('Failed to load schedule settings', e);
       }
     })();
+  }, []);
+  // Firestore 실시간 동기화: 다른 사용자가 수정해도 즉시 반영
+  useEffect(() => {
+    const configRef = doc(db, 'settings', 'scheduleConfig');
+    const unsubscribe = onSnapshot(configRef, async snap => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      // 상태 업데이트
+      if (data.employees) setEmployees(data.employees);
+      if (data.startOffsets) setStartOffsets(data.startOffsets);
+
+      if (data.dateMemos) {
+        const sanitized = (data.employees || ['', '', '']).map(
+          (_, i) => data.dateMemos[i] || {}
+        );
+        setDateMemos(sanitized);
+      }
+
+      // 로컬 캐시도 갱신
+      await AsyncStorage.multiSet([
+        ['employees', JSON.stringify(data.employees)],
+        ['startOffsets', JSON.stringify(data.startOffsets)],
+        ['dateMemos', JSON.stringify(data.dateMemos)],
+      ]);
+    });
+
+    return () => unsubscribe();
   }, []);
   const [employees, setEmployees] = useState(['', '', '']);
   // 각 직원마다 독립된 빈 객체를 생성해 동일 레퍼런스 문제 방지
