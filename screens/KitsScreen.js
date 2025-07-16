@@ -134,8 +134,9 @@ const createLog = (name, action) => {
       Alert.alert('오류', '이미 존재하는 교구 이름입니다.');
       return;
     }
+    const newId = uuid.v4();
     const newKit = {
-      id: uuid.v4(),
+      id: newId,
       name: trimmed,
       quantity: 0,
       repairing: false,
@@ -145,7 +146,7 @@ const createLog = (name, action) => {
     setKits(updated);
     setMemoDrafts((prev) => ({ ...prev, [newKit.id]: '' }));
     setNewKitName('');
-    await saveData(updated);
+    await setDoc(doc(db, 'kits', newId), newKit);
 
     const log = createLog(newKit.name, '추가됨');
     const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
