@@ -486,8 +486,14 @@ const ScheduleScreen = () => {
             const zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
             const currentEmployeeMemos = dateMemos[selectedIndex] || {};
             return (
-              <View
+              <TouchableOpacity
                 key={dateStr}
+                onPress={() => {
+                  setModalDate(dateStr);
+                  const currentEmployeeMemos = dateMemos[selectedIndex] || {};
+                  setModalMemo(currentEmployeeMemos[dateStr]?.memo || '');
+                  setModalLeave(currentEmployeeMemos[dateStr]?.isLeave || false);
+                }}
                 style={[
                   styles.weekCell,
                   dateStr === today.format('YYYY-MM-DD') && styles.weekCellToday,
@@ -503,7 +509,7 @@ const ScheduleScreen = () => {
                 {currentEmployeeMemos[dateStr]?.memo ? (
                   <Text style={styles.weekCellMemo}>{currentEmployeeMemos[dateStr].memo}</Text>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </ScrollView>
