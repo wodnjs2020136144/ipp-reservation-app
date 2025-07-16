@@ -243,64 +243,63 @@ const createLog = (name, action) => {
         </View>
       </View>
 
-      <View style={{ height: 16 }} />
-
-      <View style={styles.addKitRow}>
-        <TextInput
-          style={styles.addKitInput}
-          placeholder="새 교구 이름 입력"
-          value={newKitName}
-          onChangeText={setNewKitName}
-        />
-        <TouchableOpacity onPress={addNewKit} style={styles.addKitButton}>
-          <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" />
       ) : (
-        <FlatList
-          data={kits}
-          renderItem={renderKit}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListFooterComponent={
-            <View style={styles.logCard}>
-              <Text style={styles.logTitle}>변경 로그</Text>
-              <View style={styles.logContainer}>
-                <View style={{ maxHeight: 220 }}>
-                  <FlatList
-                    data={currentLogs}
-                    keyExtractor={(_, index) => index.toString()}
-                    renderItem={({ item }) => <Text style={styles.logItem}>{item}</Text>}
-                  />
-                </View>
-                {logs.length > LOGS_PER_PAGE && (
-                  <View style={styles.pagerRow}>
-                    <TouchableOpacity
-                      disabled={!hasPrev}
-                      onPress={() => hasPrev && setPage((p) => p - 1)}
-                      style={[styles.pagerButton, !hasPrev && { opacity: 0.3 }]}
-                    >
-                      <Ionicons name="chevron-back" size={20} color="#007aff" />
-                    </TouchableOpacity>
-                    <Text style={styles.pagerText}>
-                      {page + 1} / {Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE))}
-                    </Text>
-                    <TouchableOpacity
-                      disabled={!hasNext}
-                      onPress={() => hasNext && setPage((p) => p + 1)}
-                      style={[styles.pagerButton, !hasNext && { opacity: 0.3 }]}
-                    >
-                      <Ionicons name="chevron-forward" size={20} color="#007aff" />
-                    </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <View style={styles.addKitRow}>
+            <TextInput
+              style={styles.addKitInput}
+              placeholder="새 교구 이름 입력"
+              value={newKitName}
+              onChangeText={setNewKitName}
+            />
+            <TouchableOpacity onPress={addNewKit} style={styles.addKitButton}>
+              <Ionicons name="add" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={kits}
+            renderItem={renderKit}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={
+              <View style={styles.logCard}>
+                <Text style={styles.logTitle}>변경 로그</Text>
+                <View style={styles.logContainer}>
+                  <View style={{ maxHeight: 220 }}>
+                    <FlatList
+                      data={currentLogs}
+                      keyExtractor={(_, index) => index.toString()}
+                      renderItem={({ item }) => <Text style={styles.logItem}>{item}</Text>}
+                    />
                   </View>
-                )}
+                  {logs.length > LOGS_PER_PAGE && (
+                    <View style={styles.pagerRow}>
+                      <TouchableOpacity
+                        disabled={!hasPrev}
+                        onPress={() => hasPrev && setPage((p) => p - 1)}
+                        style={[styles.pagerButton, !hasPrev && { opacity: 0.3 }]}
+                      >
+                        <Ionicons name="chevron-back" size={20} color="#007aff" />
+                      </TouchableOpacity>
+                      <Text style={styles.pagerText}>
+                        {page + 1} / {Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE))}
+                      </Text>
+                      <TouchableOpacity
+                        disabled={!hasNext}
+                        onPress={() => hasNext && setPage((p) => p + 1)}
+                        style={[styles.pagerButton, !hasNext && { opacity: 0.3 }]}
+                      >
+                        <Ionicons name="chevron-forward" size={20} color="#007aff" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          }
-        />
+            }
+          />
+        </View>
       )}
     </SafeAreaView>
   );
