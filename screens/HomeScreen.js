@@ -1,7 +1,6 @@
 // screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Platform, StatusBar } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
 
@@ -80,9 +79,6 @@ const HomeScreen = () => {
       {/* 헤더 */}
       <View style={styles.headerRow}>
         <Text style={styles.title}>{todayString} 예약 정보</Text>
-        <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={18} color="#007AFF" />
-        </TouchableOpacity>
       </View>
 
       {/* 본문 */}
@@ -125,7 +121,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 20,

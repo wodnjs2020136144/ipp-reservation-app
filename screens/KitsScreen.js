@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Switch, TextInput, Alert, Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
@@ -21,6 +21,34 @@ const KitsScreen = () => {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // 실시간 Firestore 동기화
+  useEffect(() => {
+    const unsubscribeKits = onSnapshot(collection(db, 'kits'), snap => {
+      const kitsData = [];
+      const drafts = {};
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        kitsData.push(data);
+        drafts[data.id] = data.memo || '';
+      });
+      setKits(kitsData);
+      setMemoDrafts(drafts);
+    });
+
+    const unsubscribeLogs = onSnapshot(doc(db, 'logs', 'kitLogs'), snap => {
+      if (snap.exists()) {
+        setLogs(snap.data().entries || []);
+      } else {
+        setLogs([]);
+      }
+    });
+
+    return () => {
+      unsubscribeKits();
+      unsubscribeLogs();
+    };
   }, []);
 
   useEffect(() => {
@@ -236,11 +264,6 @@ const createLog = (name, action) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>교구 관리</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={18} color="#007aff" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {loading ? (
@@ -315,7 +338,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 20,
