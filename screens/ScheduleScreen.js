@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView, Switch } from 'react-native';
 import { StatusBar, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -21,6 +21,13 @@ const weekendZoneColors = {
   인공지능: '#FFA726', // deep orange
   'VR체험 및 수학체험센터': '#42A5F5', // vivid blue
   로봇배움터: '#66BB6A', // medium green
+};
+
+// 직무별 아이콘 (Ionicons)
+const zoneIcons = {
+  인공지능: { lib: 'fa', name: 'brain' },               // FontAwesome5
+  'VR체험 및 수학체험센터': { lib: 'fa', name: 'vr-cardboard' }, // FontAwesome5
+  로봇배움터: { lib: 'fa', name: 'robot' },              // FontAwesome5
 };
 
 const weekendBorderColor = '#8E24AA'; // purple for weekend entries
@@ -426,17 +433,31 @@ const ScheduleScreen = () => {
                       ]}
                     >
                       <Text style={styles.calDate}>{cell.day}</Text>
-                      {cell.schedules.map((sch, idx) => (
-                        <Text
-                          key={idx}
-                          style={[
-                            styles.calDetail,
-                            { color: zoneColors[sch.zone] || '#000' },
-                          ]}
-                        >
-                          {sch.label}
-                        </Text>
-                      ))}
+                      <View style={styles.calIconRow}>
+                        {cell.schedules.map((sch, idx) => {
+                          const icon = zoneIcons[sch.zone] || {};
+                          if (icon.lib === 'fa') {
+                            return (
+                              <FontAwesome5
+                                key={idx}
+                                name={icon.name}
+                                size={11}
+                                color={zoneColors[sch.zone] || '#888'}
+                                style={styles.calIcon}
+                              />
+                            );
+                          }
+                          return (
+                            <Ionicons
+                              key={idx}
+                              name={icon.name || 'ellipse'}
+                              size={12}
+                              color={zoneColors[sch.zone] || '#888'}
+                              style={styles.calIcon}
+                            />
+                          );
+                        })}
+                      </View>
                     </TouchableOpacity>
                   );
                 })()
@@ -457,10 +478,10 @@ const ScheduleScreen = () => {
             const weekStart = baseStart.add(weekOffset * 7, 'day');
             const weekEnd = weekStart.add(6, 'day');
             const monthFirst = dayjs(new Date(displayYear, displayMonth, 1));
-            const monthLast  = dayjs(new Date(displayYear, displayMonth + 1, 0));
+            const monthLast = dayjs(new Date(displayYear, displayMonth + 1, 0));
 
             const displayStart = weekStart.isBefore(monthFirst) ? monthFirst : weekStart;
-            const displayEnd   = weekEnd.isAfter(monthLast)     ? monthLast   : weekEnd;
+            const displayEnd = weekEnd.isAfter(monthLast) ? monthLast : weekEnd;
 
             return (
               <Text style={styles.weekRangeText}>
@@ -657,6 +678,32 @@ const styles = StyleSheet.create({
   calCellWeekend: { backgroundColor: '#F1F7FF' }, /* subtle light‑blue tint */
   calDate: { fontSize: 12, fontWeight: '700' },
   calDetail: { fontSize: 10 },
+  calBadge: {
+    borderRadius: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    marginTop: 2,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  calBadgeText: {
+    fontSize: 9,
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  calDotRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  calDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    margin: 1,
+  },
   weekHeader: { flexDirection: 'row' },
   weekHeaderCell: {
     flexBasis: '14.28%',
@@ -783,5 +830,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  calIconRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  calIcon: {
+    marginHorizontal: 1,
   },
 });
