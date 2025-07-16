@@ -207,16 +207,7 @@ const createLog = (name, action) => {
             <Text style={styles.btnText}>+</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                '삭제 확인',
-                `${item.name}을(를) 정말 삭제하시겠습니까?`,
-                [
-                  { text: '취소', style: 'cancel' },
-                  { text: '삭제', style: 'destructive', onPress: () => deleteKit(item.id) },
-                ]
-              )
-            }
+            onPress={() => deleteKit(item.id)}
             style={styles.deleteButton}
           >
             <Ionicons name="trash-outline" size={20} color="#fff" />
