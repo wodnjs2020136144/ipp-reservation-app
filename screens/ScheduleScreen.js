@@ -89,6 +89,13 @@ const ScheduleScreen = () => {
     }
   }, [monthOffset]);
 
+  // 수평 스크롤: 주간이 바뀔 때마다 첫 카드로 스크롤
+  useEffect(() => {
+    if (weekScrollRef.current) {
+      weekScrollRef.current.scrollTo({ x: 0, animated: false });
+    }
+  }, [weekOffset]);
+
   const [startOffsets, setStartOffsets] = useState([0, 0, 0]);
   const [tempOffset, setTempOffset] = useState(0);
 
@@ -407,24 +414,29 @@ const ScheduleScreen = () => {
           >
             <Ionicons name="chevron-back" size={20} color={weekOffset === 0 ? '#CCC' : '#000'} />
           </TouchableOpacity>
-          <Text style={styles.weekRangeText}>
-            {baseStart.add(weekOffset * 7, 'day').format('MM/DD')} - {baseStart.add(weekOffset * 7 + 6, 'day').format('MM/DD')}
-          </Text>
+          {(() => {
+            const weekStart = baseStart.add(weekOffset * 7, 'day');
+            const weekEnd = weekStart.add(6, 'day');
+            const monthFirst = dayjs(new Date(displayYear, displayMonth, 1));
+            const monthLast  = dayjs(new Date(displayYear, displayMonth + 1, 0));
+
+            const displayStart = weekStart.isBefore(monthFirst) ? monthFirst : weekStart;
+            const displayEnd   = weekEnd.isAfter(monthLast)     ? monthLast   : weekEnd;
+
+            return (
+              <Text style={styles.weekRangeText}>
+                {displayStart.format('MM/DD')} - {displayEnd.format('MM/DD')}
+              </Text>
+            );
+          })()}
           <TouchableOpacity
             onPress={() => setWeekOffset(w => w + 1)}
             disabled={
               (() => {
-                // Compute last date of the display month
                 const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
-                // Find the last Sunday ON or BEFORE end of month
-                let lastSunday = lastDateInMonth;
-                while (lastSunday.day() !== 0) {
-                  lastSunday = lastSunday.subtract(1, 'day');
-                }
-                // The next week's start date
                 const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
-                // If nextWeekStart > lastSunday, disable
-                return nextWeekStart.isAfter(lastSunday, 'day');
+                // 마지막 날 이후로 넘어가면 비활성화
+                return nextWeekStart.isAfter(lastDateInMonth, 'day');
               })()
             }
           >
@@ -434,12 +446,8 @@ const ScheduleScreen = () => {
               color={
                 (() => {
                   const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
-                  let lastSunday = lastDateInMonth;
-                  while (lastSunday.day() !== 0) {
-                    lastSunday = lastSunday.subtract(1, 'day');
-                  }
                   const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
-                  return nextWeekStart.isAfter(lastSunday, 'day') ? '#CCC' : '#000';
+                  return nextWeekStart.isAfter(lastDateInMonth, 'day') ? '#CCC' : '#000';
                 })()
               }
             />
@@ -452,8 +460,17 @@ const ScheduleScreen = () => {
           ref={weekScrollRef}
         >
           {Array.from({ length: 7 }).map((_, i) => {
-            // Use baseStart for week view
             const d = baseStart.add(weekOffset * 7 + i, 'day');
+            // 해당 월이 아니면 빈 칸
+            if (d.month() !== displayMonth) {
+              return (
+                <View
+                  key={d.format('YYYY-MM-DD') + '_empty'}
+                  style={styles.weekCellPlaceholder}
+                />
+              );
+            }
+
             const dateStr = d.format('YYYY-MM-DD');
             const zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
             const currentEmployeeMemos = dateMemos[selectedIndex] || {};
@@ -675,6 +692,11 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'flex-start',
     // width: 120 제거
+  },
+  weekCellPlaceholder: {
+    width: 0,
+    minWidth: 0,
+    marginRight: 0,
   },
 
   // 메모 텍스트 스타일에 줄 바꿈 허용
