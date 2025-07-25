@@ -14,6 +14,20 @@ const isWeekend = dateStr => {
   return day === 0 || day === 6; // Sunday(0) or Saturday(6)
 };
 
+// 2025 공휴일 (스케줄 로직에는 영향 없음)
+const HOLIDAYS = {
+  '2025-08-15': '광복절',
+  '2025-10-03': '개천절',
+  '2025-10-05': '추석',
+  '2025-10-06': '추석',
+  '2025-10-07': '추석',
+  '2025-10-08': '대체 휴일',
+  '2025-10-09': '한글날',
+  '2025-12-25': '크리스마스',
+};
+
+const isHoliday = (dateStr) => HOLIDAYS.hasOwnProperty(dateStr);
+
 const zones = ['인공지능배움터', 'VR체험', '로봇배움터'];
 
 const weekendZoneColors = {
@@ -324,7 +338,8 @@ const ScheduleScreen = () => {
           schedules.push({ label: isWeekend(dateStr) ? `${z}` : z, zone: z });
         });
       }
-      cells.push({ day: d, date: dateStr, schedules, key: dateStr });
+      const holidayName = HOLIDAYS[dateStr];
+      cells.push({ day: d, date: dateStr, schedules, key: dateStr, isHoliday: !!holidayName, holidayName });
     }
     while (cells.length % 7 !== 0) {
       cells.push({ empty: true, key: `e${cells.length}` });
@@ -497,56 +512,62 @@ const ScheduleScreen = () => {
               cell.empty ? (
                 <View key={cell.key} style={styles.calCellEmpty} />
               ) : (
-                (() => {
-                  return (
-                    <TouchableOpacity
-                      key={cell.key}
-                      onPress={() => {
-                        setModalDate(cell.date);
-                        // Per-employee dateMemos
-                        const currentEmployeeMemos = dateMemos[selectedIndex] || {};
-                        setModalMemo(currentEmployeeMemos[cell.date]?.memo || '');
-                        setModalLeave(currentEmployeeMemos[cell.date]?.isLeave || false);
-                        const origZones = scheduleData.filter(it => it.date === cell.date).map(it => it.zone);
-                        const overrideData = (dateMemos[selectedIndex] || {})[cell.date]?.overrideZones;
-                        setModalOverrideZones(overrideData && Array.isArray(overrideData) ? overrideData : origZones);
-                      }}
-                      style={[
-                        styles.calCell,
-                        isWeekend(cell.date) && styles.calCellWeekend,
-                        cell.date === today.format('YYYY-MM-DD') && styles.calCellToday,
-                        (dateMemos[selectedIndex]?.[cell.date]?.isLeave) && styles.leaveCell,
-                      ]}
-                    >
-                      <Text style={styles.calDate}>{cell.day}</Text>
-                      <View style={styles.calIconRow}>
-                        {cell.schedules.map((sch, idx) => {
-                          const icon = zoneIcons[sch.zone] || {};
-                          if (icon.lib === 'fa') {
-                            return (
-                              <FontAwesome5
-                                key={idx}
-                                name={icon.name}
-                                size={11}
-                                color={zoneColors[sch.zone] || '#888'}
-                                style={styles.calIcon}
-                              />
-                            );
-                          }
+            (() => {
+              return (
+                <TouchableOpacity
+                  key={cell.key}
+                  onPress={() => {
+                    setModalDate(cell.date);
+                    // Per-employee dateMemos
+                    const currentEmployeeMemos = dateMemos[selectedIndex] || {};
+                    setModalMemo(currentEmployeeMemos[cell.date]?.memo || '');
+                    setModalLeave(currentEmployeeMemos[cell.date]?.isLeave || false);
+                    const origZones = scheduleData.filter(it => it.date === cell.date).map(it => it.zone);
+                    const overrideData = (dateMemos[selectedIndex] || {})[cell.date]?.overrideZones;
+                    setModalOverrideZones(overrideData && Array.isArray(overrideData) ? overrideData : origZones);
+                  }}
+                  style={[
+                    styles.calCell,
+                    isWeekend(cell.date) && styles.calCellWeekend,
+                    cell.isHoliday && styles.holidayCell,
+                    cell.date === today.format('YYYY-MM-DD') && styles.calCellToday,
+                    (dateMemos[selectedIndex]?.[cell.date]?.isLeave) && styles.leaveCell,
+                  ]}
+                >
+                  <Text style={styles.calDate}>{cell.day}</Text>
+                  {cell.isHoliday && (
+                    <Text style={styles.holidayText}>{cell.holidayName}</Text>
+                  )}
+                  {!cell.isHoliday && (
+                    <View style={styles.calIconRow}>
+                      {cell.schedules.map((sch, idx) => {
+                        const icon = zoneIcons[sch.zone] || {};
+                        if (icon.lib === 'fa') {
                           return (
-                            <Ionicons
+                            <FontAwesome5
                               key={idx}
-                              name={icon.name || 'ellipse'}
-                              size={12}
+                              name={icon.name}
+                              size={11}
                               color={zoneColors[sch.zone] || '#888'}
                               style={styles.calIcon}
                             />
                           );
-                        })}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })()
+                        }
+                        return (
+                          <Ionicons
+                            key={idx}
+                            name={icon.name || 'ellipse'}
+                            size={12}
+                            color={zoneColors[sch.zone] || '#888'}
+                            style={styles.calIcon}
+                          />
+                        );
+                      })}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })()
               )
             )}
           </View>
@@ -618,6 +639,7 @@ const ScheduleScreen = () => {
             }
 
             const dateStr = d.format('YYYY-MM-DD');
+            const hName = HOLIDAYS[dateStr];
             let zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
             const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
             if (overrideZones && Array.isArray(overrideZones) && overrideZones.length > 0) {
@@ -638,12 +660,14 @@ const ScheduleScreen = () => {
                 }}
                 style={[
                   styles.weekCell,
+                  hName && styles.holidayCell,
                   dateStr === today.format('YYYY-MM-DD') && styles.weekCellToday,
                   currentEmployeeMemos[dateStr]?.isLeave && styles.leaveCell,
                 ]}
               >
                 <Text style={styles.weekCellDate}>{d.format('MM/DD (dd)')}</Text>
-                {zonesForDay.map((z, idx) => (
+                {hName && <Text style={styles.holidayText}>{hName}</Text>}
+                {!hName && zonesForDay.map((z, idx) => (
                   <View key={idx} style={[styles.badge, { backgroundColor: zoneColors[z] }]}>
                     <Text style={styles.badgeText}>{z}</Text>
                   </View>
@@ -910,6 +934,16 @@ const styles = StyleSheet.create({
   },
   leaveCell: {
     backgroundColor: '#FFF3E0', // light peach for leave days
+  },
+  holidayCell: {
+    backgroundColor: '#FFF0F0', // light red tint for holiday
+  },
+  holidayText: {
+    color: '#D32F2F',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+    textAlign: 'center',
   },
   modalButton: {
     flex: 1,
