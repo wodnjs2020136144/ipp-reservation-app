@@ -100,6 +100,7 @@ const ScheduleScreen = () => {
   );
   const [modalDate, setModalDate] = useState(null);       // currently selected date string
   const [modalMemo, setModalMemo] = useState('');
+  const [modalOverrideZones, setModalOverrideZones] = useState([]);
   const [modalLeave, setModalLeave] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -316,6 +317,13 @@ const ScheduleScreen = () => {
           label: isWeekend(it.date) ? `${it.zone}` : it.zone,
           zone: it.zone,
         }));
+      const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
+      if (overrideZones && Array.isArray(overrideZones) && overrideZones.length > 0) {
+        schedules.splice(0, schedules.length);
+        overrideZones.forEach(z => {
+          schedules.push({ label: isWeekend(dateStr) ? `${z}` : z, zone: z });
+        });
+      }
       cells.push({ day: d, date: dateStr, schedules, key: dateStr });
     }
     while (cells.length % 7 !== 0) {
@@ -347,24 +355,64 @@ const ScheduleScreen = () => {
       <Modal visible={modalDate !== null} transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={{ marginBottom: 8 }}>{modalDate} 메모 및 월차</Text>
+            <Text style={{ marginBottom: 8 }}>{modalDate} 수정</Text>
             <TextInput
               placeholder="메모 입력"
               value={modalMemo}
               onChangeText={setModalMemo}
               style={styles.input}
             />
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text>월차</Text>
               <Switch value={modalLeave} onValueChange={setModalLeave} />
             </View>
+            {/* 직무 수정 영역 */}
+            <Text style={{ marginBottom: 6 }}>직무</Text>
+            {(() => {
+              if (!modalDate) return null;
+              const weekend = isWeekend(modalDate);
+              const candidateZones = weekend ? WEEKEND_TASKS : TASKS;
+
+              const toggleZone = (z) => {
+                setModalOverrideZones(prev => {
+                  if (prev.includes(z)) {
+                    return prev.filter(v => v !== z);
+                  } else {
+                    return [...prev, z];
+                  }
+                });
+              };
+
+              return (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
+                  {candidateZones.map(z => (
+                    <TouchableOpacity
+                      key={z}
+                      onPress={() => toggleZone(z)}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: modalOverrideZones.includes(z) ? '#007aff' : '#ccc',
+                        backgroundColor: modalOverrideZones.includes(z) ? '#E3F2FD' : '#fff',
+                        marginRight: 6,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text style={{ color: '#000', fontSize: 12 }}>{z}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <TouchableOpacity
                 style={styles.modalButton}
                 onPress={async () => {
                   const updatedAll = [...dateMemos];
                   const empMemos = { ...(updatedAll[selectedIndex] || {}) };
-                  empMemos[modalDate] = { memo: modalMemo, isLeave: modalLeave };
+                  empMemos[modalDate] = { memo: modalMemo, isLeave: modalLeave, overrideZones: modalOverrideZones };
                   updatedAll[selectedIndex] = empMemos;
 
                   // undefined → {} 로 정규화
@@ -393,6 +441,9 @@ const ScheduleScreen = () => {
       <Modal visible={modalVisible} transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
+            <Text style={{ marginBottom: 8, fontSize: 16, fontWeight: '600' }}>
+              {`직원 ${selectedIndex + 1} 이름 수정`}
+            </Text>
             <TextInput
               placeholder="직원 이름 입력"
               value={inputName}
@@ -456,6 +507,9 @@ const ScheduleScreen = () => {
                         const currentEmployeeMemos = dateMemos[selectedIndex] || {};
                         setModalMemo(currentEmployeeMemos[cell.date]?.memo || '');
                         setModalLeave(currentEmployeeMemos[cell.date]?.isLeave || false);
+                        const origZones = scheduleData.filter(it => it.date === cell.date).map(it => it.zone);
+                        const overrideData = (dateMemos[selectedIndex] || {})[cell.date]?.overrideZones;
+                        setModalOverrideZones(overrideData && Array.isArray(overrideData) ? overrideData : origZones);
                       }}
                       style={[
                         styles.calCell,
@@ -564,7 +618,11 @@ const ScheduleScreen = () => {
             }
 
             const dateStr = d.format('YYYY-MM-DD');
-            const zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+            let zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+            const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
+            if (overrideZones && Array.isArray(overrideZones) && overrideZones.length > 0) {
+              zonesForDay = overrideZones;
+            }
             const currentEmployeeMemos = dateMemos[selectedIndex] || {};
             return (
               <TouchableOpacity
@@ -574,6 +632,9 @@ const ScheduleScreen = () => {
                   const currentEmployeeMemos = dateMemos[selectedIndex] || {};
                   setModalMemo(currentEmployeeMemos[dateStr]?.memo || '');
                   setModalLeave(currentEmployeeMemos[dateStr]?.isLeave || false);
+                  const origZones = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+                  const overrideData = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
+                  setModalOverrideZones(overrideData && Array.isArray(overrideData) ? overrideData : origZones);
                 }}
                 style={[
                   styles.weekCell,
