@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView, Switch } from 'react-native';
 import { StatusBar, Platform } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { db } from '../firebase';
@@ -39,10 +38,8 @@ const ScheduleScreen = () => {
       try {
         // Load local
         const emps = await AsyncStorage.getItem('employees');
-        const offs = await AsyncStorage.getItem('startOffsets');
         const memos = await AsyncStorage.getItem('dateMemos');
         let localEmps = emps ? JSON.parse(emps) : null;
-        let localOffs = offs ? JSON.parse(offs) : null;
         let localDateMemos = memos ? JSON.parse(memos) : null;
         // Load Firestore
         const docRef = doc(db, 'settings', 'scheduleConfig');
@@ -50,15 +47,12 @@ const ScheduleScreen = () => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.employees) localEmps = data.employees;
-          if (data.startOffsets) localOffs = data.startOffsets;
           if (data.dateMemos) localDateMemos = data.dateMemos;
           // Persist to local
           await AsyncStorage.setItem('employees', JSON.stringify(localEmps));
-          await AsyncStorage.setItem('startOffsets', JSON.stringify(localOffs));
           await AsyncStorage.setItem('dateMemos', JSON.stringify(localDateMemos));
         }
         if (localEmps) setEmployees(localEmps);
-        if (localOffs) setStartOffsets(localOffs);
         // dateMemos is now per‑employee array of objects
         if (localDateMemos) {
           // 인덱스가 비어있으면 빈 객체로 채워서 undefined 제거
@@ -82,7 +76,6 @@ const ScheduleScreen = () => {
 
       // 상태 업데이트
       if (data.employees) setEmployees(data.employees);
-      if (data.startOffsets) setStartOffsets(data.startOffsets);
 
       if (data.dateMemos) {
         const sanitized = (data.employees || ['', '', '']).map(
@@ -94,7 +87,6 @@ const ScheduleScreen = () => {
       // 로컬 캐시도 갱신
       await AsyncStorage.multiSet([
         ['employees', JSON.stringify(data.employees)],
-        ['startOffsets', JSON.stringify(data.startOffsets)],
         ['dateMemos', JSON.stringify(data.dateMemos)],
       ]);
     });
@@ -131,13 +123,41 @@ const ScheduleScreen = () => {
     }
   }, [weekOffset]);
 
-  const [startOffsets, setStartOffsets] = useState([0, 0, 0]);
-  const [tempOffset, setTempOffset] = useState(0);
+  // 평일 직무 순환 리스트 (인공지능 -> VR -> 로봇)
+  const TASKS = ['인공지능', 'VR체험 및 수학체험센터', '로봇배움터'];
+  // 직무 순환 시작 기준일 (직원1이 인공지능으로 시작하는 날짜)
+  const START_DATE = '2025-07-01'; // YYYY-MM-DD
+  // 주말 전용 직무 (로봇배움터 제외)
+  const WEEKEND_TASKS = ['인공지능', 'VR체험 및 수학체험센터'];
+  const START_MONTH = '2025-07'; // YYYY-MM (7월을 기준으로 월 단위 로테이션 계산)
+
+  // START_MONTH로부터 현재 월까지의 차이를 구해 직원 로테이션에 사용
+  const monthDiffFromStart = (year, month) => {
+    const start = dayjs(START_MONTH + '-01');
+    const cur = dayjs(new Date(year, month, 1));
+    return cur.diff(start, 'month');
+  };
+
+  // 이번 달의 주말 역할(일요일 담당, 토요일 슬롯A, 슬롯B)을 직원 인덱스에 매핑
+  // 초기(2025-07): sun=직원1(0), satA=직원2(1), satB=직원3(2)
+  const getWeekendRoleMapping = (year, month) => {
+    const diff = monthDiffFromStart(year, month);
+    // base order [0,1,2] => rotate by diff
+    const base = [0, 1, 2];
+    const rotated = base.map(i => (i + diff) % 3);
+    return {
+      sun: rotated[0],  // 일요일 담당 직원 인덱스
+      satA: rotated[1], // 토요일 오전 AI/오후 VR 패턴 담당 직원 인덱스 (초기 기준)
+      satB: rotated[2], // 토요일 오전 VR/오후 AI 패턴 담당 직원 인덱스 (초기 기준)
+    };
+  };
+
+  // 토요일 개수(4 or 5)에 따라 교대 시작 주차를 반환 (1-based)
+  const getSaturdaySwapStartWeek = (saturdayCount) => (saturdayCount === 4 ? 3 : 4);
 
   useEffect(() => {
     if (modalVisible) {
       setInputName(employees[selectedIndex] || '');
-      setTempOffset(startOffsets[selectedIndex] || 0);
     }
   }, [modalVisible]);
 
@@ -150,18 +170,13 @@ const ScheduleScreen = () => {
     const newEmps = [...employees];
     newEmps[selectedIndex] = inputName.trim();
     setEmployees(newEmps);
-    const newOffsets = [...startOffsets];
-    newOffsets[selectedIndex] = tempOffset;
-    setStartOffsets(newOffsets);
     // persist changes
     await AsyncStorage.setItem('employees', JSON.stringify(newEmps));
-    await AsyncStorage.setItem('startOffsets', JSON.stringify(newOffsets));
     await AsyncStorage.setItem('dateMemos', JSON.stringify(dateMemos));
     // persist to Firestore (undefined 제거)
     const configRef = doc(db, 'settings', 'scheduleConfig');
     await setDoc(configRef, {
       employees: newEmps,
-      startOffsets: newOffsets,
       dateMemos: dateMemos.map(v => v || {}),
     });
     setModalVisible(false);
@@ -179,78 +194,106 @@ const ScheduleScreen = () => {
   const baseStart = monthOffset === 0
     ? today
     : dayjs(new Date(displayYear, displayMonth, 1));
-  // Generate schedule data with weekend logic, using displayMonth/displayYear
+  // 화~금 평일만 카운트하여 순환 인덱스를 계산
+  const getZoneForDate = (empIndex, dateStr) => {
+    const target = dayjs(dateStr);
+    const start = dayjs(START_DATE);
+    if (target.isBefore(start, 'day')) return TASKS[empIndex % TASKS.length];
+
+    let weekdayCount = 0; // 화~금 근무일 카운트
+    for (let d = start; d.isBefore(target, 'day') || d.isSame(target, 'day'); d = d.add(1, 'day')) {
+      const dow = d.day();
+      if (dow >= 2 && dow <= 5) {
+        weekdayCount += 1;
+      }
+    }
+    // 첫 근무일(START_DATE)도 포함해서 계산했으므로 -1 보정 후 offset
+    const offset = empIndex; // 직원1=0, 직원2=1, 직원3=2
+    const idx = ((weekdayCount - 1) + offset) % TASKS.length;
+    return TASKS[idx];
+  };
+
   const scheduleData = useMemo(() => {
     const list = [];
     const month = displayMonth;
     const year = displayYear;
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
-    // Collect all Saturdays in the month
-    const saturdayDates = [];
-    for (let d2 = 1; d2 <= lastDate; d2++) {
-      if (dayjs(new Date(year, month, d2)).day() === 6) {
-        saturdayDates.push(d2);
-      }
-    }
-    const saturdayCount = saturdayDates.length;
-    // Determine initial non-swapping weeks: if 5 saturdays, first 3; if 4 saturdays, first 2
-    const initWeeks = saturdayCount === 5 ? 3 : 2;
-    let weekdayCounter = 0;
-    // effective weekend offset shifts by monthOffset each month, reversed direction
-    const effOffset = ((startOffsets[selectedIndex] - monthOffset) % zones.length + zones.length) % zones.length;
+
+    // 1) 평일(화~금) 스케줄: 기존 로직 그대로
     for (let date = 1; date <= lastDate; date++) {
-      const d = dayjs(new Date(year, month, date));
-      const dow = d.day();
-      // Skip Monday
-      if (dow === 1) continue;
-      // Weekday (Tue- Fri)
-      if (dow >= 2 && dow <= 5) {
-        list.push({
-          date: d.format('YYYY-MM-DD'),
-          zone: zones[(weekdayCounter + effOffset) % zones.length],
-        });
-        weekdayCounter++;
-        continue;
-      }
-      // Saturday
-      if (dow === 6) {
-        // determine week index (0-based)
-        const weekIndex = Math.ceil(date / 7) - 1;
-        let firstZone, secondZone;
-        const offset = effOffset;
-        if (offset === 1) {
-          if (weekIndex < initWeeks) {
-            firstZone = zones[0];
-            secondZone = zones[1];
-          } else {
-            firstZone = zones[1];
-            secondZone = zones[0];
-          }
-        } else if (offset === 2) {
-          if (weekIndex < initWeeks) {
-            firstZone = zones[1];
-            secondZone = zones[0];
-          } else {
-            firstZone = zones[0];
-            secondZone = zones[1];
-          }
-        }
-        if (offset !== 0) {
-          list.push({ date: d.format('YYYY-MM-DD'), zone: firstZone });
-          list.push({ date: d.format('YYYY-MM-DD'), zone: secondZone });
-        }
-        continue;
-      }
-      // Sunday
-      if (dow === 0) {
-        if (effOffset === 0) {
-          list.push({ date: d.format('YYYY-MM-DD'), zone: zones[0] });
-          list.push({ date: d.format('YYYY-MM-DD'), zone: zones[1] });
-        }
+      const current = dayjs(new Date(year, month, date));
+      const dow = current.day();
+      if (dow >= 2 && dow <= 5) { // Tue~Fri
+        const ds = current.format('YYYY-MM-DD');
+        const zone = getZoneForDate(selectedIndex, ds);
+        list.push({ date: ds, zone });
       }
     }
+
+    // 2) 주말(토/일) 스케줄: 평일 로직과 완전히 분리하여 처리
+    // 토요일은 2명 근무, 일요일은 1명 근무. 로봇배움터 제외.
+    // 주말 직원 포지션은 달 단위로 로테이션.
+
+    // 토요일 목록 추출 및 주차 계산
+    const saturdays = [];
+    for (let d = 1; d <= lastDate; d++) {
+      const cur = dayjs(new Date(year, month, d));
+      if (cur.day() === 6) saturdays.push(cur);
+    }
+    const saturdayCount = saturdays.length;
+    const swapStartWeek = getSaturdaySwapStartWeek(saturdayCount); // 3 or 4
+
+    // 일요일 목록 추출
+    const sundays = [];
+    for (let d = 1; d <= lastDate; d++) {
+      const cur = dayjs(new Date(year, month, d));
+      if (cur.day() === 0) sundays.push(cur);
+    }
+
+    // 이번 달 역할 매핑 (직원 인덱스)
+    const { sun: sunIdx, satA: satAIdx, satB: satBIdx } = getWeekendRoleMapping(year, month);
+
+    // 토요일 패턴 정의
+    const patternA = ['인공지능', 'VR체험 및 수학체험센터']; // 오전 AI, 오후 VR
+    const patternB = ['VR체험 및 수학체험센터', '인공지능']; // 오전 VR, 오후 AI
+
+    // 토요일 처리
+    saturdays.forEach((satDate, idx) => {
+      // idx: 0-based (첫 토요일이 idx=0) → weekNum = idx+1
+      const weekNum = idx + 1;
+      const beforeSwap = weekNum < swapStartWeek; // 교대 전 구간
+      const afterSwap = !beforeSwap;              // 교대 후 구간
+
+      // 교대 전/후에 따라 패턴을 적용
+      const thisPatternA = beforeSwap ? patternA : patternB; // slotA 담당자의 패턴
+      const thisPatternB = beforeSwap ? patternB : patternA; // slotB 담당자의 패턴
+
+      const ds = satDate.format('YYYY-MM-DD');
+
+      // 선택된 직원(selectedIndex)에 따라 해당 날짜에 자신이 맡은 직무를 list에 추가
+      if (selectedIndex === satAIdx) {
+        // 오전, 오후 두 개 등록
+        list.push({ date: ds, zone: thisPatternA[0] });
+        list.push({ date: ds, zone: thisPatternA[1] });
+      }
+      if (selectedIndex === satBIdx) {
+        list.push({ date: ds, zone: thisPatternB[0] });
+        list.push({ date: ds, zone: thisPatternB[1] });
+      }
+    });
+
+    // 일요일 처리: 한 명이 두 직무 모두 담당 (오전/오후 구분 없음이지만, 아이콘/표시를 위해 두 개로 넣어도 됨)
+    sundays.forEach(sunDate => {
+      const ds = sunDate.format('YYYY-MM-DD');
+      if (selectedIndex === sunIdx) {
+        // 두 직무 모두 등록 (표시용)
+        list.push({ date: ds, zone: WEEKEND_TASKS[0] });
+        list.push({ date: ds, zone: WEEKEND_TASKS[1] });
+      }
+    });
+
     return list;
-  }, [selectedIndex, displayMonth, displayYear, startOffsets, monthOffset]);
+  }, [selectedIndex, displayMonth, displayYear, monthOffset]);
 
   // Month view uses scheduleData for calendarData building
   const monthData = scheduleData;
@@ -356,17 +399,6 @@ const ScheduleScreen = () => {
               onChangeText={setInputName}
               style={styles.input}
             />
-            <Text style={{ marginBottom: 8 }}>첫날 직무 선택</Text>
-            <Picker
-              selectedValue={tempOffset}
-              onValueChange={setTempOffset}
-              style={{ marginBottom: 12, color: '#000' }}   // 글씨 보이도록 색 지정
-            >
-              {zones.map((z, i) => (
-                <Picker.Item key={z} label={z} value={i} color="#000" />
-              ))}
-            </Picker>
-
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <TouchableOpacity style={styles.modalButton} onPress={saveName}>
                 <Text style={styles.modalButtonText}>저장</Text>
