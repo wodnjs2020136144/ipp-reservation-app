@@ -9,6 +9,13 @@ import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
 import dayjs from 'dayjs';
 
+const COLORS = {
+  primary: '#555555',  // 다크 그레이
+  accent: '#777777',  // 중간 그레이
+  danger: '#E53935',  // 빨간색 (휴지통 등)
+  success: '#007AFF',  // 파란색 (확인/저장 등)
+};
+
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -18,6 +25,9 @@ const KitsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [memoDrafts, setMemoDrafts] = useState({});
   const [newKitName, setNewKitName] = useState('');
+  const [nameDrafts, setNameDrafts] = useState({});
+  const [editingName, setEditingName] = useState({});
+  const [qtyDrafts, setQtyDrafts] = useState({});
 
   useEffect(() => {
     loadData();
@@ -28,13 +38,16 @@ const KitsScreen = () => {
     const unsubscribeKits = onSnapshot(collection(db, 'kits'), snap => {
       const kitsData = [];
       const drafts = {};
+      const nameDraftTemp = {};
       snap.forEach(docSnap => {
         const data = docSnap.data();
         kitsData.push(data);
         drafts[data.id] = data.memo || '';
+        nameDraftTemp[data.id] = data.name || '';
       });
       setKits(kitsData);
       setMemoDrafts(drafts);
+      setNameDrafts(nameDraftTemp);
     });
 
     const unsubscribeLogs = onSnapshot(doc(db, 'logs', 'kitLogs'), snap => {
@@ -60,13 +73,16 @@ const KitsScreen = () => {
       const kitsSnapshot = await getDocs(collection(db, 'kits'));
       const kitsData = [];
       const drafts = {};
+      const nameDraftInit = {};
       kitsSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         kitsData.push(data);
         drafts[data.id] = data.memo || '';
+        nameDraftInit[data.id] = data.name || '';
       });
       setKits(kitsData);
       setMemoDrafts(drafts);
+      setNameDrafts(nameDraftInit);
 
       const logDoc = await getDoc(doc(db, 'logs', 'kitLogs'));
       if (logDoc.exists()) {
@@ -100,25 +116,28 @@ const KitsScreen = () => {
     }
   };
 
-const createLog = (name, action) => {
-  const now = dayjs();    // local time
-  const timestamp = now.format('HH:mm');
-  const date = now.format('YYYY-MM-DD');
-  return `[${date} ${timestamp}] ${name} ${action}`;
-};
+  const createLog = (name, action) => {
+    const now = dayjs();    // local time
+    const timestamp = now.format('HH:mm');
+    const date = now.format('YYYY-MM-DD');
+    return `[${date} ${timestamp}] ${name} ${action}`;
+  };
 
   const changeQuantity = (id, diff) => {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
 
+    const oldQty = kit.quantity;
+    const newQty = Math.max(0, oldQty + diff);
+
     const updated = kits.map((k) =>
-      k.id === id ? { ...k, quantity: Math.max(0, k.quantity + diff) } : k
+      k.id === id ? { ...k, quantity: newQty } : k
     );
 
     setKits(updated);
     saveData(updated);
 
-    const log = createLog(kit.name, `${diff > 0 ? '+' : '-'}${Math.abs(diff)}`);
+    const log = createLog(kit.name, `수량 ${oldQty}→${newQty}`);
     const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
     setLogs(newLogs);
     saveLogs(newLogs);
@@ -211,14 +230,100 @@ const createLog = (name, action) => {
   const hasPrev = page > 0;
   const hasNext = end < logs.length;
 
+  const startEditName = (id) => {
+    const target = kits.find(k => k.id === id);
+    setEditingName(prev => ({ ...prev, [id]: true }));
+    setNameDrafts(prev => ({ ...prev, [id]: target?.name || '' }));
+    setQtyDrafts(prev => ({ ...prev, [id]: String(target?.quantity ?? 0) }));
+  };
+
+  const cancelEditName = (id) => {
+    const target = kits.find(k => k.id === id);
+    setEditingName(prev => ({ ...prev, [id]: false }));
+    setNameDrafts(prev => ({ ...prev, [id]: target?.name || '' }));
+    setQtyDrafts(prev => ({ ...prev, [id]: String(target?.quantity ?? 0) }));
+  };
+
+  const saveKitName = async (id) => {
+    const draftName = (nameDrafts[id] || '').trim();
+    if (!draftName) {
+      Alert.alert('오류', '교구 이름을 입력해주세요.');
+      return;
+    }
+    if (kits.some(k => k.name === draftName && k.id !== id)) {
+      Alert.alert('오류', '이미 존재하는 교구 이름입니다.');
+      return;
+    }
+
+    let rawQty = qtyDrafts[id];
+    let parsedQty = parseInt(rawQty, 10);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      Alert.alert('오류', '수량은 0 이상의 숫자로 입력해주세요.');
+      return;
+    }
+
+    const oldKit = kits.find(k => k.id === id);
+    const updated = kits.map(k => (k.id === id ? { ...k, name: draftName, quantity: parsedQty } : k));
+    setKits(updated);
+    await saveData(updated);
+
+    let actionMsgParts = [];
+    if (oldKit.name !== draftName) actionMsgParts.push(`이름 변경 → ${draftName}`);
+    if (oldKit.quantity !== parsedQty) actionMsgParts.push(`수량 ${oldKit.quantity}→${parsedQty}`);
+    const actionMsg = actionMsgParts.length ? actionMsgParts.join(', ') : '수정됨';
+
+    const log = createLog(oldKit.name, actionMsg);
+    const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
+    setLogs(newLogs);
+    await saveLogs(newLogs);
+
+    setEditingName(prev => ({ ...prev, [id]: false }));
+  };
+
   const renderKit = ({ item }) => (
     <View style={styles.kitCard}>
       <View style={styles.kitHeader}>
-        <Text style={styles.kitName}>{item.name}</Text>
-        <Text style={styles.kitQuantity}>{item.quantity}개</Text>
+        <View style={styles.kitTitleBox}>
+          {editingName[item.id] ? (
+            <TextInput
+              style={styles.nameInput}
+              value={nameDrafts[item.id] || ''}
+              onChangeText={(t) => setNameDrafts(prev => ({ ...prev, [item.id]: t }))}
+            />
+          ) : (
+            <Text style={styles.kitName}>{item.name}</Text>
+          )}
+        </View>
+        <View style={styles.kitHeaderRight}>
+          {editingName[item.id] ? (
+            <TextInput
+              style={styles.quantityInput}
+              keyboardType="number-pad"
+              value={qtyDrafts[item.id] || ''}
+              onChangeText={(t) => setQtyDrafts(prev => ({ ...prev, [item.id]: t }))}
+            />
+          ) : (
+            <Text style={styles.kitQuantity}>{item.quantity}개</Text>
+          )}
+
+          {editingName[item.id] ? (
+            <View style={styles.nameEditButtons}>
+              <TouchableOpacity onPress={() => saveKitName(item.id)} style={styles.nameSaveBtn}>
+                <Ionicons name="checkmark-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => cancelEditName(item.id)} style={styles.nameCancelBtn}>
+                <Ionicons name="close-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => startEditName(item.id)} style={styles.nameEditBtn}>
+              <Ionicons name="create-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      <View style={styles.kitButtons}>
+      <View style={styles.actionRow}>
         <View style={styles.repairRow}>
           <Text style={styles.repairLabel}>수리 중</Text>
           <Switch
@@ -234,10 +339,7 @@ const createLog = (name, action) => {
           <TouchableOpacity onPress={() => changeQuantity(item.id, 1)} style={styles.button}>
             <Text style={styles.btnText}>+</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => deleteKit(item.id)}
-            style={styles.deleteButton}
-          >
+          <TouchableOpacity onPress={() => deleteKit(item.id)} style={styles.deleteButton}>
             <Ionicons name="trash-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -371,7 +473,7 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 8,
   },
-  addKitButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  addKitButton: { marginLeft: 10, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: COLORS.primary, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   kitCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -389,26 +491,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',   // 수직 중앙 정렬
   },
-  kitName: { fontSize: 17, fontWeight: '600' }, 
+  kitName: { fontSize: 17, fontWeight: '600' },
   kitQuantity: {
     fontSize: 20,           // 더 크게
     fontWeight: '700',
     color: '#333',
   },
-  kitButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, alignItems: 'center' },
   buttonGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto',
   },
-  button: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
-  deleteButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ff3b30', justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  button: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  deleteButton: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.danger, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  btnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   repairRow: { flexDirection: 'row', alignItems: 'center' },
   repairLabel: { fontSize: 14, marginRight: 10 },
   memoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   memoInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8, fontSize: 14, minHeight: 40 },
-  memoConfirmButton: { marginLeft: 10, padding: 8, backgroundColor: '#007aff', borderRadius: 8 },
+  memoConfirmButton: { marginLeft: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: COLORS.success, borderRadius: 6 },
   logCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -421,7 +522,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  logContainer: { 
+  logContainer: {
     marginTop: 8,
     paddingHorizontal: 4,
   },
@@ -452,4 +553,68 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 120,
+    fontSize: 16,
+  },
+  nameEditButtons: {
+    flexDirection: 'row',
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  nameSaveBtn: {
+    marginLeft: 6,
+    padding: 5,
+    backgroundColor: COLORS.success,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nameCancelBtn: {
+    marginLeft: 6,
+    padding: 5,
+    backgroundColor: COLORS.danger,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nameEditBtn: {
+    marginLeft: 8,
+    padding: 5,
+    backgroundColor: COLORS.primary,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  kitTitleBox: {
+    flex: 1,
+    marginRight: 8,
+  },
+  kitHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  quantityInput: {
+    width: 60,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    fontSize: 16,
+    textAlign: 'center',
+    marginRight: 6,
+  },
 });
+
