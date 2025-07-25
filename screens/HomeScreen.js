@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const HomeScreen = () => {
   const [reservations, setReservations] = useState({
@@ -11,6 +12,7 @@ const HomeScreen = () => {
     drone: [],
   });
   const [loading, setLoading] = useState(true);
+  const [closeMeta, setCloseMeta] = useState({}); // { slotKey: { lastAvail, total } }
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = () => {
     setRefreshing(true);
@@ -34,8 +36,48 @@ const HomeScreen = () => {
     setLoading(true);
     const data = await fetchAllReservations(); // { ai:[{time,available,total,…}], … }
     setReservations(data);
+    await processClosedSlots(data);
     setLoading(false);
   };
+
+  // 슬롯 고유 키(type + time)
+  const makeSlotKey = (type, time) => `${type}-${time}`;
+
+  // 저장/로드
+  const saveCloseMeta = async (meta) => {
+    try {
+      await AsyncStorage.setItem('closeMeta', JSON.stringify(meta));
+    } catch (e) {}
+  };
+
+  const loadCloseMeta = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('closeMeta');
+      if (raw) setCloseMeta(JSON.parse(raw));
+    } catch (e) {}
+  };
+
+  // status가 닫힘이면 첫 발견 시 lastAvail/total 저장
+  const isClosedStatus = (status) => status === 'closed' || status === '정원마감' || status === '시간마감';
+
+  const processClosedSlots = async (data) => {
+    const newMeta = { ...closeMeta };
+    ['ai', 'earthquake', 'drone'].forEach(type => {
+      (data[type] || []).forEach(slot => {
+        if (isClosedStatus(slot.status)) {
+          const key = makeSlotKey(type, slot.time);
+          if (!newMeta[key]) {
+            newMeta[key] = { lastAvail: slot.available, total: slot.total };
+          }
+        }
+      });
+    });
+    setCloseMeta(newMeta);
+    await saveCloseMeta(newMeta);
+  };
+  useEffect(() => {
+    loadCloseMeta();
+  }, []);
 
   useEffect(() => {
     loadData();                                // 최초
@@ -60,15 +102,22 @@ const HomeScreen = () => {
         ) : data.length === 0 ? (
           <Text style={styles.emptyText}>예약 정보가 없습니다.</Text>
         ) : (
-          data.map((slot, idx) => (
-            <ReservationItem
-              key={`${type}-${idx}`}
-              time={slot.time}
-              status={slot.status}
-              remaining={slot.available} // ← 잔여 인원
-              total={slot.total}         // ← 정원
-            />
-          ))
+          data.map((slot, idx) => {
+            const key = makeSlotKey(type, slot.time);
+            const meta = closeMeta[key] || {};
+            const closed = isClosedStatus(slot.status);
+            const shownRemaining = closed && meta.lastAvail != null ? meta.lastAvail : slot.available;
+            const shownTotal = closed && meta.total != null ? meta.total : slot.total;
+            return (
+              <ReservationItem
+                key={`${type}-${idx}`}
+                time={slot.time}
+                status={slot.status}
+                remaining={shownRemaining}
+                total={shownTotal}
+              />
+            );
+          })
         )}
       </View>
     );
