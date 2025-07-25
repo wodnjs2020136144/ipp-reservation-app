@@ -1,23 +1,9 @@
 // screens/HomeScreen.js
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
-
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
-const SERVER_URL = 'https://ipp-reservation-server.fly.dev'; // TODO: 실제 fly 앱 URL로 변경
-
 
 const HomeScreen = () => {
   const [reservations, setReservations] = useState({
@@ -45,46 +31,10 @@ const HomeScreen = () => {
   });
   const todayDay = new Date().getDay();        // 0=일 … 6=토
 
-  // 푸시 토큰 등록
-  const registerPushToken = async () => {
-    try {
-      // 권한 확인/요청
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        return; // 권한 거부시 그냥 종료
-      }
-
-      // 토큰 발급
-      const tokenData = await Notifications.getExpoPushTokenAsync();
-      const token = tokenData?.data;
-      if (!token) return;
-
-      // 이미 등록했는지 확인
-      const saved = await AsyncStorage.getItem('expoPushToken');
-      if (saved === token) return; // 동일 토큰이면 재전송 불필요
-
-      // 서버에 등록
-      await fetch(`${SERVER_URL}/api/push-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
-
-      await AsyncStorage.setItem('expoPushToken', token);
-    } catch (e) {
-      // 실패해도 앱 동작엔 영향 없으므로 무시 가능. 필요 시 로깅
-    }
-  };
-
   /** API 호출 */
   const loadData = async () => {
     setLoading(true);
-    const data = await fetchAllReservations();
+    const data = await fetchAllReservations(); // { ai:[{time,available,total,…}], … }
     setReservations(data);
     await processClosedSlots(data);
     setLoading(false);
@@ -92,7 +42,6 @@ const HomeScreen = () => {
 
   // 슬롯 고유 키(type + time)
   const makeSlotKey = (type, time) => `${type}-${time}`;
-
 
   // 저장/로드
   const saveCloseMeta = async (meta) => {
@@ -107,7 +56,6 @@ const HomeScreen = () => {
       if (raw) setCloseMeta(JSON.parse(raw));
     } catch (e) {}
   };
-
 
   // status가 닫힘이면 첫 발견 시 lastAvail/total 저장
   const isClosedStatus = (status) => status === 'closed' || status === '정원마감' || status === '시간마감';
@@ -132,12 +80,9 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
-    registerPushToken();
-  }, []);
-
-
-  useEffect(() => {
-    loadData(); // 최초 1회 로드(당겨서 새로고침은 당김 pull‑refresh만 사용)
+    loadData();                                // 최초
+    const id = setInterval(loadData, 60_000);  // 1 분 주기 새로고침
+    return () => clearInterval(id);
   }, []);
 
   /** 목록 카드 렌더 */
