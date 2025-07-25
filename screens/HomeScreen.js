@@ -137,9 +137,9 @@ const HomeScreen = () => {
     loadCloseMeta();
   }, []);
 
-  // useEffect(() => {
-  //   registerPushToken();
-  // }, []);
+  useEffect(() => {
+    registerPushToken();
+  }, []);
 
 
   useEffect(() => {
