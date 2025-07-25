@@ -5,18 +5,18 @@ import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// import * as Notifications from 'expo-notifications';
+import * as Notifications from 'expo-notifications';
 
 
-// Notifications.setNotificationHandler({
-//   handleNotification: async () => ({
-//     shouldShowAlert: true,
-//     shouldPlaySound: false,
-//     shouldSetBadge: false,
-//   }),
-// });
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
-const SERVER_URL = 'https://ipp-reservation-server.fly.dev';
+const SERVER_URL = 'https://ipp-reservation-server.fly.dev'; // TODO: 실제 fly 앱 URL로 변경
 
 
 const HomeScreen = () => {
@@ -45,47 +45,41 @@ const HomeScreen = () => {
   });
   const todayDay = new Date().getDay();        // 0=일 … 6=토
 
-  // // 푸시 토큰 등록
-  // const registerPushToken = async () => {
-  //   try {
-  //     // 권한 확인/요청
-  //     const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  //     let finalStatus = existingStatus;
-  //     if (existingStatus !== 'granted') {
-  //       const { status } = await Notifications.requestPermissionsAsync();
-  //       finalStatus = status;
-  //     }
-  //     if (finalStatus !== 'granted') {
-  //       return; // 권한 거부시 그냥 종료
-  //     }
+  // 푸시 토큰 등록
+  const registerPushToken = async () => {
+    try {
+      // 권한 확인/요청
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        return; // 권한 거부시 그냥 종료
+      }
 
-  //     // 토큰 발급
-  //     const tokenData = await Notifications.getExpoPushTokenAsync();
-  //     const token = tokenData?.data;
-  //     console.log('[push] Expo token', token);
-  //     if (!token) return;
+      // 토큰 발급
+      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const token = tokenData?.data;
+      if (!token) return;
 
-  //     // 이미 등록했는지 확인
-  //     const saved = await AsyncStorage.getItem('expoPushToken');
-  //     if (saved === token) return; // 동일 토큰이면 재전송 불필요
+      // 이미 등록했는지 확인
+      const saved = await AsyncStorage.getItem('expoPushToken');
+      if (saved === token) return; // 동일 토큰이면 재전송 불필요
 
-  //     // 서버에 등록
-  //     try {
-  //       const resp = await fetch(`${SERVER_URL}/api/push-token`, {
-  //         method: 'POST',
-  //         headers: { 'Content-Type': 'application/json' },
-  //         body: JSON.stringify({ token }),
-  //       });
-  //       console.log('[push] token sent, status', resp.status);
-  //     } catch (netErr) {
-  //       console.error('[push] token send failed', netErr);
-  //     }
+      // 서버에 등록
+      await fetch(`${SERVER_URL}/api/push-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
 
-  //     await AsyncStorage.setItem('expoPushToken', token);
-  //   } catch (e) {
-  //     console.error('[push] register error', e);
-  //   }
-  // };
+      await AsyncStorage.setItem('expoPushToken', token);
+    } catch (e) {
+      // 실패해도 앱 동작엔 영향 없으므로 무시 가능. 필요 시 로깅
+    }
+  };
 
   /** API 호출 */
   const loadData = async () => {
