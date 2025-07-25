@@ -14,18 +14,18 @@ const isWeekend = dateStr => {
   return day === 0 || day === 6; // Sunday(0) or Saturday(6)
 };
 
-const zones = ['인공지능', 'VR체험 및 수학체험센터', '로봇배움터'];
+const zones = ['인공지능배움터', 'VR체험', '로봇배움터'];
 
 const weekendZoneColors = {
-  인공지능: '#FFA726', // deep orange
-  'VR체험 및 수학체험센터': '#42A5F5', // vivid blue
+  인공지능배움터: '#FFA726', // deep orange
+  VR체험: '#42A5F5', // vivid blue
   로봇배움터: '#66BB6A', // medium green
 };
 
 // 직무별 아이콘 (Ionicons)
 const zoneIcons = {
-  인공지능: { lib: 'fa', name: 'brain' },               // FontAwesome5
-  'VR체험 및 수학체험센터': { lib: 'fa', name: 'vr-cardboard' }, // FontAwesome5
+  인공지능배움터: { lib: 'fa', name: 'brain' },               // FontAwesome5
+  VR체험: { lib: 'fa', name: 'vr-cardboard' }, // FontAwesome5
   로봇배움터: { lib: 'fa', name: 'robot' },              // FontAwesome5
 };
 
@@ -123,12 +123,12 @@ const ScheduleScreen = () => {
     }
   }, [weekOffset]);
 
-  // 평일 직무 순환 리스트 (인공지능 -> VR -> 로봇)
-  const TASKS = ['인공지능', 'VR체험 및 수학체험센터', '로봇배움터'];
+  // 평일 직무 순환 리스트 (인공지능배움터 -> VR체험 -> 로봇)
+  const TASKS = ['인공지능배움터', 'VR체험', '로봇배움터'];
   // 직무 순환 시작 기준일 (직원1이 인공지능으로 시작하는 날짜)
   const START_DATE = '2025-07-01'; // YYYY-MM-DD
   // 주말 전용 직무 (로봇배움터 제외)
-  const WEEKEND_TASKS = ['인공지능', 'VR체험 및 수학체험센터'];
+  const WEEKEND_TASKS = ['인공지능배움터', 'VR체험'];
   const START_MONTH = '2025-07'; // YYYY-MM (7월을 기준으로 월 단위 로테이션 계산)
 
   // START_MONTH로부터 현재 월까지의 차이를 구해 직원 로테이션에 사용
@@ -254,8 +254,8 @@ const ScheduleScreen = () => {
     const { sun: sunIdx, satA: satAIdx, satB: satBIdx } = getWeekendRoleMapping(year, month);
 
     // 토요일 패턴 정의
-    const patternA = ['인공지능', 'VR체험 및 수학체험센터']; // 오전 AI, 오후 VR
-    const patternB = ['VR체험 및 수학체험센터', '인공지능']; // 오전 VR, 오후 AI
+    const patternA = ['인공지능배움터', 'VR체험']; // 오전 AI, 오후 VR
+    const patternB = ['VR체험', '인공지능배움터']; // 오전 VR, 오후 AI
 
     // 토요일 처리
     saturdays.forEach((satDate, idx) => {
@@ -602,8 +602,8 @@ const ScheduleScreen = () => {
 export default ScheduleScreen;
 
 const zoneColors = {
-  인공지능: '#FFB74D', // orange
-  'VR체험 및 수학체험센터': '#4FC3F7', // light blue
+  인공지능배움터: '#FFB74D', // orange
+  VR체험: '#4FC3F7', // light blue
   로봇배움터: '#81C784', // green
 };
 
