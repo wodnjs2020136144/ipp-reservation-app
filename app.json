@@ -2,6 +2,9 @@
   "expo": {
     "name": "ipp-reservation-app",
     "slug": "ipp-reservation-app",
+    "plugins": [
+      "expo-notifications"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
