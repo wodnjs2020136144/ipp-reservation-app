@@ -223,6 +223,12 @@ const ScheduleScreen = () => {
   const baseStart = monthOffset === 0
     ? today
     : dayjs(new Date(displayYear, displayMonth, 1));
+  // 최소 주간 오프셋: START_MONTH(2025‑07)의 주 시작 이전으로 못 가도록 제한
+  const earliestWeekOffset = useMemo(() => {
+    const earliest = dayjs(START_MONTH + '-01').startOf('week');
+    const baseWeek = baseStart.startOf('week');
+    return earliest.diff(baseWeek, 'week');   // negative (or 0)
+  }, [baseStart]);
   // 화~금 평일만 카운트하여 순환 인덱스를 계산
   const getZoneForDate = (empIndex, dateStr) => {
     const target = dayjs(dateStr);
@@ -598,10 +604,14 @@ const ScheduleScreen = () => {
         {/* Weekly schedule for current month */}
         <View style={styles.weekHeaderRow}>
           <TouchableOpacity
-            onPress={() => setWeekOffset(w => w - 1)}
-            disabled={weekOffset === 0}
+            onPress={() => setWeekOffset(w => Math.max(earliestWeekOffset, w - 1))}
+            disabled={weekOffset <= earliestWeekOffset}
           >
-            <Ionicons name="chevron-back" size={20} color={weekOffset === 0 ? '#CCC' : '#000'} />
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={weekOffset <= earliestWeekOffset ? '#CCC' : '#000'}
+            />
           </TouchableOpacity>
           {(() => {
             const weekStart = baseStart.add(weekOffset * 7, 'day');
