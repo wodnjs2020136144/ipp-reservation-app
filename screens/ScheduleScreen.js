@@ -112,6 +112,13 @@ const ScheduleScreen = () => {
   const [dateMemos, setDateMemos] = useState(() =>
     Array.from({ length: (employees && employees.length) || 3 }, () => ({}))
   );
+  // 직원별 사용한 월차(연차) 개수 계산 – dateMemos 변경시 자동 갱신
+  const leaveCounts = useMemo(() =>
+    dateMemos.map(dm =>
+      Object.values(dm || {}).filter(v => v && v.isLeave).length
+    ),
+    [dateMemos]
+  );
   const [modalDate, setModalDate] = useState(null);       // currently selected date string
   const [modalMemo, setModalMemo] = useState('');
   const [modalOverrideZones, setModalOverrideZones] = useState([]);
@@ -346,13 +353,14 @@ const ScheduleScreen = () => {
         });
       }
       const holidayName = HOLIDAYS[dateStr];
-      cells.push({ day: d, date: dateStr, schedules, key: dateStr, isHoliday: !!holidayName, holidayName });
+      const hasMemo = !!((dateMemos[selectedIndex] || {})[dateStr]?.memo?.trim());
+      cells.push({ day: d, date: dateStr, schedules, key: dateStr, isHoliday: !!holidayName, holidayName, hasMemo });
     }
     while (cells.length % 7 !== 0) {
       cells.push({ empty: true, key: `e${cells.length}` });
     }
     return cells;
-  }, [monthData, displayYear, displayMonth]);
+  }, [monthData, displayYear, displayMonth, dateMemos, selectedIndex]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -384,6 +392,10 @@ const ScheduleScreen = () => {
               onChangeText={setModalMemo}
               style={styles.input}
             />
+            {/* 사용한 월차 개수 표시 */}
+            <Text style={{ marginBottom: 8, fontSize: 13, color: '#666' }}>
+              사용한 월차: {leaveCounts[selectedIndex]}
+            </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text>월차</Text>
               <Switch value={modalLeave} onValueChange={setModalLeave} />
@@ -571,6 +583,9 @@ const ScheduleScreen = () => {
                             );
                           })}
                         </View>
+                      )}
+                      {cell.hasMemo && !cell.isHoliday && (
+                        <View style={styles.memoDot} />
                       )}
                     </TouchableOpacity>
                   );
@@ -820,6 +835,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    marginTop: 2,
+  },
+  memoDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FF7043', // distinct orange
+    alignSelf: 'center',
     marginTop: 2,
   },
   calDot: {
