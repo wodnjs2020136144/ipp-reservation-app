@@ -1,9 +1,17 @@
 // screens/HomeScreen.js
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Linking } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 직무별 원예약 페이지 URL
+const reservationLinks = {
+  ai: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=1f960d474357a0fac696373aa47231c9819814b7d50f96cb7e020bd713813353',
+  earthquake: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=836d40ad6724f3585ecc91c192de8f29d7b34b85db4c936465070bb8a1d25af5',
+  drone: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=33152e18b25f10571da6b0aa11ccf9f07e6211fe37567968e6c591f23fa5c429',
+};
 
 const HomeScreen = () => {
   const [reservations, setReservations] = useState({
@@ -95,7 +103,16 @@ const HomeScreen = () => {
 
     return (
       <View style={styles.groupCard}>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL(reservationLinks[type])}
+            accessibilityRole="link"
+            accessibilityLabel="예약 페이지 열기"
+          >
+            <Ionicons name="link-outline" size={18} color="#007aff" />
+          </TouchableOpacity>
+        </View>
 
         {special ? (
           <Text style={styles.emptyText}>{special}</Text>
@@ -203,6 +220,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 8,
     elevation: 3,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333' },
   emptyText: { textAlign: 'center', fontSize: 16, marginTop: 10, color: '#888' },
