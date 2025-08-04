@@ -1,6 +1,9 @@
 // ✅ firebase.js (통일본)
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getReactNativePersistence } from 'firebase/auth/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyC60tV7nmeZRU1P81tLU_sVYpcBWDM",
@@ -14,4 +17,25 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 console.log('✅ Firestore 인스턴스:', db);
-export { db };
+
+// ---------- Auth (익명 로그인) ----------
+const auth = getAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
+
+/**
+ * ensureAuth()
+ * 앱 부팅 시 호출해 익명 로그인 상태를 보장한다.
+ */
+export async function ensureAuth() {
+  if (!auth.currentUser) {
+    try {
+      await signInAnonymously(auth);
+      console.log('✅ Firebase anonymous sign‑in:', auth.currentUser.uid);
+    } catch (e) {
+      console.warn('⚠️ Firebase sign‑in failed:', e);
+    }
+  }
+}
+
+export { db, auth };
