@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Switch, TextInput, Alert, Platform, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';   // auth: 디버그용 UID 확인
 import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
 import dayjs from 'dayjs';
@@ -29,7 +29,13 @@ const KitsScreen = () => {
   const [editingName, setEditingName] = useState({});
   const [qtyDrafts, setQtyDrafts] = useState({});
 
+  // ---------- DEBUG HELPER ----------
+  const debugLog = (...args) => {
+    if (__DEV__) console.log('[KitsScreen]', ...args);
+  };
+
   useEffect(() => {
+    debugLog('current auth uid =', auth.currentUser?.uid);
     loadData();
   }, []);
 
@@ -100,6 +106,7 @@ const KitsScreen = () => {
 
   const saveData = async (updated) => {
     try {
+      debugLog('saveData → kits', updated.map(k => k.id));
       await Promise.all(
         updated.map((kit) => setDoc(doc(db, 'kits', kit.id), kit))
       );
@@ -109,6 +116,7 @@ const KitsScreen = () => {
   };
 
   const saveLogs = async (updatedLogs) => {
+    debugLog('saveLogs → logs/kitLogs, entries length =', updatedLogs.length);
     try {
       await setDoc(doc(db, 'logs', 'kitLogs'), { entries: updatedLogs });
     } catch (e) {
@@ -194,6 +202,7 @@ const KitsScreen = () => {
     setMemoDrafts((prev) => ({ ...prev, [newKit.id]: '' }));
     setNewKitName('');
     await setDoc(doc(db, 'kits', newId), newKit);
+    debugLog('addNewKit write kits/', newId);
 
     const log = createLog(newKit.name, '추가됨');
     const newLogs = [log, ...logs.slice(0, LOG_HISTORY_LIMIT - 1)];
@@ -212,6 +221,7 @@ const KitsScreen = () => {
         text: '삭제',
         style: 'destructive',
         onPress: async () => {
+          debugLog('deleteKit kits/', id);
           const updated = kits.filter((k) => k.id !== id);
           setKits(updated);
           await deleteDoc(doc(db, 'kits', id));

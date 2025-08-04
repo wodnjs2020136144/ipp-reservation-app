@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import ScheduleScreen from './screens/ScheduleScreen';
@@ -7,6 +7,8 @@ import HomeScreen from './screens/HomeScreen';
 import KitsScreen from './screens/KitsScreen';
 
 import { Ionicons } from '@expo/vector-icons';
+import { View, ActivityIndicator } from 'react-native';
+import { ensureAuth } from './firebase';
 import { Platform } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -54,6 +56,27 @@ function MyTabs() {
 }
 
 export default function App() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await ensureAuth();          // Firebase 익명 로그인 완료 대기
+      } finally {
+        setReady(true);
+      }
+    })();
+  }, []);
+
+  if (!ready) {
+    // 간단한 로딩 화면 (Splash 역할)
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>

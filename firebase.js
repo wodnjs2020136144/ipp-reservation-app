@@ -1,12 +1,20 @@
 // ✅ firebase.js (통일본)
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getReactNativePersistence } from 'firebase/auth/react-native';
+import {
+  initializeAuth,
+  getReactNativePersistence,
+  signInAnonymously,
+  getAuth,
+} from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// NOTE: Older firebase versions (< 9.6) don’t ship `firebase/auth/react-native`.
+//       If you upgrade the SDK later, you can re‑add persistence with:
+//       import { getReactNativePersistence } from 'firebase/auth/react-native';
+//       import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC60tV7nmeZRU1P81tLU_sVYpcBWDM",
+  apiKey: "AIzaSyCEoktV7zrnneZRUlPe181lu_sYVpcBMDM",
   authDomain: "ipp-reservation-app.firebaseapp.com",
   projectId: "ipp-reservation-app",
   storageBucket: "ipp-reservation-app.appspot.com",
@@ -19,9 +27,21 @@ const db = getFirestore(app);
 console.log('✅ Firestore 인스턴스:', db);
 
 // ---------- Auth (익명 로그인) ----------
-const auth = getAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+let auth;
+
+try {
+  // initializeAuth can be called only once per app.
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch (e) {
+  // If it was already initialised elsewhere, fallback to getAuth.
+  if (e?.code === 'auth/already-initialized') {
+    auth = getAuth(app);
+  } else {
+    throw e;
+  }
+}
 
 /**
  * ensureAuth()
