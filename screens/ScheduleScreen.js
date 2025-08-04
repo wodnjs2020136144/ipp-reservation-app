@@ -1,4 +1,16 @@
-// screens/ScheduleScreen.js
+/**
+ * ScheduleScreen
+ * =====================================================
+ * 기능 요약
+ * -----------------------------------------------------
+ * • 월간/주간 근무 스케줄 자동 계산 (평일·주말 로테이션 규칙)
+ * • 날짜 메모 · 월차(연차) 관리 (AsyncStorage ↔ Firestore 동기화)
+ * • UI: Month Calendar + Week Grid, 직원 탭, 메모/이름 수정 모달
+ */
+
+// =====================================================
+// Imports
+// =====================================================
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView, Switch } from 'react-native';
@@ -8,6 +20,9 @@ import dayjs from 'dayjs';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
+// =====================================================
+// Constants & Helpers
+// =====================================================
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
   const day = d.getDay();
@@ -45,8 +60,11 @@ const zoneIcons = {
 
 const weekendBorderColor = '#8E24AA'; // purple for weekend entries
 
+// =====================================================
+// Component
+// =====================================================
 const ScheduleScreen = () => {
-  // Load saved employees and offsets
+  // ----------------------- Init: Load settings -----------------------
   useEffect(() => {
     (async () => {
       try {
@@ -81,7 +99,7 @@ const ScheduleScreen = () => {
       }
     })();
   }, []);
-  // Firestore 실시간 동기화: 다른 사용자가 수정해도 즉시 반영
+  // ----------------------- Firestore Sync -----------------------
   useEffect(() => {
     const configRef = doc(db, 'settings', 'scheduleConfig');
     const unsubscribe = onSnapshot(configRef, async snap => {
@@ -107,6 +125,7 @@ const ScheduleScreen = () => {
 
     return () => unsubscribe();
   }, []);
+  // ----------------------- State -----------------------
   const [employees, setEmployees] = useState(['', '', '']);
   // 각 직원마다 독립된 빈 객체를 생성해 동일 레퍼런스 문제 방지
   const [dateMemos, setDateMemos] = useState(() =>
@@ -145,6 +164,7 @@ const ScheduleScreen = () => {
     }
   }, [weekOffset]);
 
+  // ----------------------- Date math helpers -----------------------
   // 평일 직무 순환 리스트 (인공지능배움터 -> VR체험 -> 로봇)
   const TASKS = ['인공지능배움터', 'VR체험', '로봇배움터'];
   // 직무 순환 시작 기준일 (직원1이 인공지능으로 시작하는 날짜)
@@ -248,6 +268,7 @@ const ScheduleScreen = () => {
     return TASKS[idx];
   };
 
+  // ----------------------- Derived Data -----------------------
   const scheduleData = useMemo(() => {
     const list = [];
     const month = displayMonth;
@@ -333,6 +354,7 @@ const ScheduleScreen = () => {
   // Month view uses scheduleData for calendarData building
   const monthData = scheduleData;
 
+  // ----------------------- Calendar Cell Build -----------------------
   const calendarData = useMemo(() => {
     const year = displayYear;
     const month = displayMonth; // 0-index
@@ -368,6 +390,9 @@ const ScheduleScreen = () => {
     return cells;
   }, [monthData, displayYear, displayMonth, dateMemos, selectedIndex]);
 
+  // =====================================================
+  // JSX
+  // =====================================================
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -718,6 +743,9 @@ const ScheduleScreen = () => {
 
 export default ScheduleScreen;
 
+// =====================================================
+// Styles
+// =====================================================
 const zoneColors = {
   인공지능배움터: '#FFB74D', // orange
   VR체험: '#4FC3F7', // light blue
@@ -770,7 +798,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
   },
   date: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  zone: { fontSize: 14, fontWeight: '600' }, // override earlier zone style
+  zone: { fontSize: 14, fontWeight: '600' },
   empty: { textAlign: 'center', marginTop: 20, color: '#888' },
   viewToggle: { flexDirection: 'row', marginBottom: 12, justifyContent: 'center' },
   iconToggle: {
@@ -799,7 +827,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 6,
-    marginHorizontal: -6, /* stretch edge‑to‑edge inside padding */
+    marginHorizontal: -6,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 2 },
@@ -824,7 +852,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#ECECEC',
   },
-  calCellWeekend: { backgroundColor: '#F1F7FF' }, /* subtle light‑blue tint */
+  calCellWeekend: { backgroundColor: '#F1F7FF' },
   calDate: { fontSize: 12, fontWeight: '700' },
   calDetail: { fontSize: 10 },
   calBadge: {
@@ -851,7 +879,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#FF7043', // distinct orange
+    backgroundColor: '#FF7043',
     alignSelf: 'center',
     marginTop: 2,
   },
@@ -937,10 +965,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,
     elevation: 2,
-    minHeight: 120,        // 고정 height 대신 minHeight 사용
+    minHeight: 120,
     flexDirection: 'column',
     justifyContent: 'flex-start',
-    // width: 120 제거
   },
   weekCellPlaceholder: {
     width: 0,
@@ -948,13 +975,12 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
 
-  // 메모 텍스트 스타일에 줄 바꿈 허용
   weekCellMemo: {
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
     color: '#666',
-    flexWrap: 'wrap',      // 줄 바꿈 허용
+    flexWrap: 'wrap',
   },
   weekCellToday: { borderColor: '#007aff', borderWidth: 2 },
   calCellToday: {

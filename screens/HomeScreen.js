@@ -1,4 +1,13 @@
-// screens/HomeScreen.js
+/**
+ * HomeScreen
+ * =====================================================
+ * 기능 요약
+ * -----------------------------------------------------
+ * 1. 1분 간격으로 오늘(인공지능·지진 VR·드론 VR) 예약 현황 갱신
+ * 2. "닫힘" 시점의 잔여/정원 값을 AsyncStorage 에 스냅샷 저장
+ * 3. 직무별 카드 + 외부 링크 아이콘 제공 (모바일 브라우저로 연결)
+ * 4. Pull‑to‑refresh + 자동 새로고침 UI
+ */
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,13 +15,16 @@ import ReservationItem from '../components/ReservationItem';
 import { fetchAllReservations } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 직무별 원예약 페이지 URL
+// 각 직무별 웹 예약 캘린더 URL (외부 브라우저로 열기용)
 const reservationLinks = {
   ai: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=1f960d474357a0fac696373aa47231c9819814b7d50f96cb7e020bd713813353',
   earthquake: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=836d40ad6724f3585ecc91c192de8f29d7b34b85db4c936465070bb8a1d25af5',
   drone: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=33152e18b25f10571da6b0aa11ccf9f07e6211fe37567968e6c591f23fa5c429',
 };
 
+// =====================================================
+// State
+// =====================================================
 const HomeScreen = () => {
   const [reservations, setReservations] = useState({
     ai: [],
@@ -24,13 +36,16 @@ const HomeScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = () => {
     setRefreshing(true);
-    // wait for release bounce, then refresh
+    // iOS pull‑bounce 후 0.5초 기다리고 새로고침
     setTimeout(async () => {
       await loadData();
       setRefreshing(false);
     }, 500);
   };
 
+  // =====================================================
+  // Today Helpers
+  // =====================================================
   const todayString = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -39,7 +54,9 @@ const HomeScreen = () => {
   });
   const todayDay = new Date().getDay();        // 0=일 … 6=토
 
-  /** API 호출 */
+  // =====================================================
+  // API & 데이터 로드
+  // =====================================================
   const loadData = async () => {
     setLoading(true);
     const data = await fetchAllReservations(); // { ai:[{time,available,total,…}], … }
@@ -48,10 +65,13 @@ const HomeScreen = () => {
     setLoading(false);
   };
 
-  // 슬롯 고유 키(type + time)
+  // -----------------------------------------------------
+  // Utils
+  // -----------------------------------------------------
+  // 고유 key : 'ai-15:10' 형태 (직무+시작시각)
   const makeSlotKey = (type, time) => `${type}-${time}`;
 
-  // 저장/로드
+  // AsyncStorage helpers ─ 마감 스냅샷 { lastAvail, total } 저장/로드
   const saveCloseMeta = async (meta) => {
     try {
       await AsyncStorage.setItem('closeMeta', JSON.stringify(meta));
@@ -65,9 +85,14 @@ const HomeScreen = () => {
     } catch (e) {}
   };
 
-  // status가 닫힘이면 첫 발견 시 lastAvail/total 저장
-  const isClosedStatus = (status) => status === 'closed' || status === '정원마감' || status === '시간마감';
+// 닫힌 상태 식별 (서버에서 내려주는 status 값)
+const isClosedStatus = (status) => status === 'closed' || status === '정원마감' || status === '시간마감';
+// true ⇢ closed (정원마감/시간마감)  false ⇢ 예약가능
+const isClosed = (slot) => isClosedStatus(slot.status);
 
+  // -----------------------------------------------------
+  // 닫힌 슬롯 스냅샷 처리
+  // -----------------------------------------------------
   const processClosedSlots = async (data) => {
     const newMeta = { ...closeMeta };
     ['ai', 'earthquake', 'drone'].forEach(type => {
@@ -83,17 +108,32 @@ const HomeScreen = () => {
     setCloseMeta(newMeta);
     await saveCloseMeta(newMeta);
   };
+  // 화면 진입: 로컬 저장된 마감 스냅샷 로드
+
+  // =====================================================
+  // Effects
+  // =====================================================
   useEffect(() => {
     loadCloseMeta();
   }, []);
 
   useEffect(() => {
-    loadData();                                // 최초
-    const id = setInterval(loadData, 60_000);  // 1 분 주기 새로고침
+    // 최초 로드 + 60초 간격 자동 갱신
+    loadData();
+    const id = setInterval(loadData, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  /** 목록 카드 렌더 */
+  // =====================================================
+  // Render Helpers
+  // =====================================================
+  /**
+   * renderGroup
+   * -----------
+   * title      : 카드 제목
+   * data       : [{time, status, available, total}]
+   * type       : 'ai' | 'earthquake' | 'drone'
+   */
   const renderGroup = (title, data, type) => {
     // 요일별 특수 안내
     let special = '';
@@ -132,6 +172,7 @@ const HomeScreen = () => {
                 status={slot.status}
                 remaining={shownRemaining}
                 total={shownTotal}
+                closed={isClosed(slot)}
               />
             );
           })
@@ -140,14 +181,17 @@ const HomeScreen = () => {
     );
   };
 
+  // =====================================================
+  // JSX
+  // =====================================================
   return (
     <SafeAreaView style={styles.container}>
-      {/* 헤더 */}
+      {/* ---- Top Date Header ---- */}
       <View style={styles.headerRow}>
         <Text style={styles.title}>{todayString} 예약 정보</Text>
       </View>
 
-      {/* 본문 */}
+      {/* ---- Reservation Cards ---- */}
       {loading ? (
         <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />
       ) : (
@@ -177,7 +221,9 @@ const HomeScreen = () => {
 
 export default HomeScreen;
 
-/* --- styles 그대로 --- */
+// =====================================================
+// Styles
+// =====================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
