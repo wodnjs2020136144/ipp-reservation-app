@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-const ReservationItem = ({ time, status, remaining, total }) => {
+const ReservationItem = ({ time, status, remaining, total, closed = false }) => {
   return (
     <View style={styles.item}>
-      <Text style={styles.time}>{time}</Text>
-      <Text style={styles.status}>{status}</Text>
+      <Text style={[styles.time, closed && styles.textClosed]}>{time}</Text>
+      <Text style={[styles.status, closed && styles.textClosed]}>{status}</Text>
       {typeof remaining === 'number' && (
-        <Text style={styles.remaining}>
+        <Text style={[styles.remaining, closed && styles.textClosed]}>
           {total != null ? `${remaining}/${total}명` : `${remaining}명`}
         </Text>
       )}
@@ -39,6 +39,9 @@ const styles = StyleSheet.create({
     color: '#555',
     flex: 1,
     textAlign: 'right',
+  },
+  textClosed: {
+    color: '#999',
   },
 });
 

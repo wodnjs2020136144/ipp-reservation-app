@@ -34,6 +34,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [closeMeta, setCloseMeta] = useState({}); // { slotKey: { lastAvail, total } }
   const [refreshing, setRefreshing] = useState(false);
+
   const handleRefresh = () => {
     setRefreshing(true);
     // iOS pull‑bounce 후 0.5초 기다리고 새로고침
