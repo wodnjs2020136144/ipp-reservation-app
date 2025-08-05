@@ -4,7 +4,7 @@
  * 기능 요약
  * -----------------------------------------------------
  * 1. 1분 간격으로 오늘(인공지능·지진 VR·드론 VR) 예약 현황 갱신
- * 2. "닫힘" 시점의 잔여/정원 값을 AsyncStorage 에 스냅샷 저장
+ * 2. "닫힘" 시점의 신청인원/정원 값을 AsyncStorage 에 스냅샷 저장
  * 3. 직무별 카드 + 외부 링크 아이콘 제공 (모바일 브라우저로 연결)
  * 4. Pull‑to‑refresh + 자동 새로고침 UI
  */
@@ -32,7 +32,7 @@ const HomeScreen = () => {
     drone: [],
   });
   const [loading, setLoading] = useState(true);
-  const [closeMeta, setCloseMeta] = useState({}); // { slotKey: { lastAvail, total } }
+  const [closeMeta, setCloseMeta] = useState({}); // { slotKey: { lastBooked, total } }
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -72,7 +72,7 @@ const HomeScreen = () => {
   // 고유 key : 'ai-15:10' 형태 (직무+시작시각)
   const makeSlotKey = (type, time) => `${type}-${time}`;
 
-  // AsyncStorage helpers ─ 마감 스냅샷 { lastAvail, total } 저장/로드
+  // AsyncStorage helpers ─ 마감 스냅샷 { lastBooked, total } 저장/로드
   const saveCloseMeta = async (meta) => {
     try {
       await AsyncStorage.setItem('closeMeta', JSON.stringify(meta));
@@ -86,7 +86,7 @@ const HomeScreen = () => {
     } catch (e) {}
   };
 
-// 닫힌 상태 식별 (서버에서 내려주는 status 값)
+// 닫힘 상태 식별 (정원마감·시간마감)
 const isClosedStatus = (status) => status === 'closed' || status === '정원마감' || status === '시간마감';
 // true ⇢ closed (정원마감/시간마감)  false ⇢ 예약가능
 const isClosed = (slot) => isClosedStatus(slot.status);
@@ -101,7 +101,7 @@ const isClosed = (slot) => isClosedStatus(slot.status);
         if (isClosedStatus(slot.status)) {
           const key = makeSlotKey(type, slot.time);
           if (!newMeta[key]) {
-            newMeta[key] = { lastAvail: slot.available, total: slot.total };
+            newMeta[key] = { lastBooked: slot.available, total: slot.total };
           }
         }
       });
@@ -164,14 +164,14 @@ const isClosed = (slot) => isClosedStatus(slot.status);
             const key = makeSlotKey(type, slot.time);
             const meta = closeMeta[key] || {};
             const closed = isClosedStatus(slot.status);
-            const shownRemaining = closed && meta.lastAvail != null ? meta.lastAvail : slot.available;
-            const shownTotal = closed && meta.total != null ? meta.total : slot.total;
+            const shownBooked = closed && meta.lastBooked != null ? meta.lastBooked : slot.available;
+            const shownTotal  = closed && meta.total      != null ? meta.total      : slot.total;
             return (
               <ReservationItem
                 key={`${type}-${idx}`}
                 time={slot.time}
                 status={slot.status}
-                remaining={shownRemaining}
+                remaining={shownBooked}
                 total={shownTotal}
                 closed={isClosed(slot)}
               />
