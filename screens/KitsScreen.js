@@ -1,4 +1,16 @@
-// screens/KitsScreens.js
+/**
+ * KitsScreen — 교구 관리 화면
+ * Firestore:
+ *   - 컬렉션 'kits'  : 교구 목록(이름/수량/수리여부/메모)
+ *   - 문서   'logs/kitLogs' : 변경 이력 문자열 배열
+ * 주요 기능:
+ *   1) 교구 목록 조회/추가/이름·수량 수정/삭제
+ *   2) 수리 상태 토글 및 메모 저장
+ *   3) 모든 변경에 대한 로그 기록(최대 100개, 페이징)
+ * 주의:
+ *   - Firestore 보안 규칙에서 인증 사용자에게만 쓰기 허용해야 함
+ *   - 네트워크 오류 시 initialKits로 안전 폴백
+ */
 
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Switch, TextInput, Alert, Platform, StatusBar } from 'react-native';
@@ -9,6 +21,10 @@ import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
 import dayjs from 'dayjs';
 
+// ─────────────────────────────────────────────────────────────
+// UI 컬러 토큰 (일관된 버튼/배지 색상)
+// ─────────────────────────────────────────────────────────────
+
 const COLORS = {
   primary: '#555555',  // 다크 그레이
   accent: '#777777',  // 중간 그레이
@@ -17,6 +33,19 @@ const COLORS = {
 };
 
 const KitsScreen = () => {
+  /** 상태 관리
+   * kits            : 교구 목록
+   * logs            : 변경 이력 문자열 배열
+   * page            : 로그 페이징 인덱스
+   * LOGS_PER_PAGE   : 페이지당 로그 개수
+   * LOG_HISTORY_LIMIT: 로그 저장 상한(최신 n개만 유지)
+   * loading         : 초기 로딩 스피너 제어
+   * memoDrafts      : 각 교구 메모 입력 임시값 {id: string}
+   * newKitName      : 새 교구 이름 입력값
+   * nameDrafts      : 이름 편집 임시값 {id: string}
+   * editingName     : 이름 편집 모드 {id: boolean}
+   * qtyDrafts       : 수량 편집 임시값(문자열) {id: string}
+   */
   const [kits, setKits] = useState([]);
   const [logs, setLogs] = useState([]);
   const [page, setPage] = useState(0);
@@ -29,17 +58,21 @@ const KitsScreen = () => {
   const [editingName, setEditingName] = useState({});
   const [qtyDrafts, setQtyDrafts] = useState({});
 
-  // ---------- DEBUG HELPER ----------
+  /** 개발 빌드에서만 로그 출력 (릴리즈에서는 무음) */
   const debugLog = (...args) => {
     if (__DEV__) console.log('[KitsScreen]', ...args);
   };
 
+  // 초기 마운트: 인증 UID 디버그 출력 및 1회 데이터 로드
   useEffect(() => {
     debugLog('current auth uid =', auth.currentUser?.uid);
     loadData();
   }, []);
 
-  // 실시간 Firestore 동기화
+  // 실시간 동기화: Firestore 구독 (kits, logs)
+  //  - kits 변경 시 목록·입력 임시값 동기화
+  //  - logs 변경 시 화면에 즉시 반영
+  //  - 언마운트 시 구독 해제
   useEffect(() => {
     const unsubscribeKits = onSnapshot(collection(db, 'kits'), snap => {
       const kitsData = [];
@@ -70,10 +103,15 @@ const KitsScreen = () => {
     };
   }, []);
 
+  // 새 로그 수신 시 페이징을 첫 페이지로 리셋
   useEffect(() => {
     setPage(0);   // 새 로그가 오면 첫 페이지로
   }, [logs]);
 
+  /** 초기 로딩용 1회 fetch
+   *  - kits 컬렉션, logs 문서 동시 로딩
+   *  - 실패 시 initialKits로 폴백
+   */
   const loadData = async () => {
     try {
       const kitsSnapshot = await getDocs(collection(db, 'kits'));
@@ -104,6 +142,9 @@ const KitsScreen = () => {
     }
   };
 
+  /** kits 일괄 저장 (병렬 setDoc)
+   * @param updated 최신 kits 배열
+   */
   const saveData = async (updated) => {
     try {
       debugLog('saveData → kits', updated.map(k => k.id));
@@ -115,6 +156,7 @@ const KitsScreen = () => {
     }
   };
 
+  /** 로그 저장: logs/kitLogs 문서에 entries 배열로 기록 */
   const saveLogs = async (updatedLogs) => {
     debugLog('saveLogs → logs/kitLogs, entries length =', updatedLogs.length);
     try {
@@ -124,6 +166,9 @@ const KitsScreen = () => {
     }
   };
 
+  /** 로그 포맷터
+   * 예: [2025-08-08 14:32] 로봇팔 수량 2→3
+   */
   const createLog = (name, action) => {
     const now = dayjs();    // local time
     const timestamp = now.format('HH:mm');
@@ -131,6 +176,10 @@ const KitsScreen = () => {
     return `[${date} ${timestamp}] ${name} ${action}`;
   };
 
+  /** 수량 증감(+/−)
+   * 1) 낙관적 UI 업데이트 → Firestore 저장
+   * 2) "수량 a→b" 형태로 로그 추가(상한 유지)
+   */
   const changeQuantity = (id, diff) => {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
@@ -151,6 +200,7 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
+  /** 수리 상태 토글 및 로그 작성 */
   const toggleRepair = (id) => {
     const kit = kits.find((k) => k.id === id);
     const updated = kits.map((k) =>
@@ -166,6 +216,7 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
+  /** 메모 저장: 개별 교구 memoDrafts[id] → kits[].memo 반영 후 저장·로그 */
   const updateMemo = (id) => {
     const draft = memoDrafts[id];
     const updated = kits.map((k) => (k.id === id ? { ...k, memo: draft } : k));
@@ -179,6 +230,11 @@ const KitsScreen = () => {
     saveLogs(newLogs);
   };
 
+  /** 새 교구 추가
+   * - 입력값 검증(공백/중복)
+   * - Firestore에 즉시 반영
+   * - 로그 "추가됨" 기록
+   */
   const addNewKit = async () => {
     const trimmed = newKitName.trim();
     if (!trimmed) {
@@ -210,6 +266,7 @@ const KitsScreen = () => {
     await saveLogs(newLogs);
   };
 
+  /** 교구 삭제(확인 다이얼로그) 후 Firestore 삭제 및 로그 기록 */
   const deleteKit = async (id) => {
     const kit = kits.find((k) => k.id === id);
     Alert.alert('삭제 확인', `${kit.name}을(를) 삭제할까요?`, [
@@ -234,12 +291,14 @@ const KitsScreen = () => {
     ]);
   };
 
+  // 로그 페이징 파생값
   const start = page * LOGS_PER_PAGE;
   const end = start + LOGS_PER_PAGE;
   const currentLogs = logs.slice(start, end);
   const hasPrev = page > 0;
   const hasNext = end < logs.length;
 
+  /** 이름/수량 편집 시작: 임시값 초기화 및 편집 모드 진입 */
   const startEditName = (id) => {
     const target = kits.find(k => k.id === id);
     setEditingName(prev => ({ ...prev, [id]: true }));
@@ -247,6 +306,7 @@ const KitsScreen = () => {
     setQtyDrafts(prev => ({ ...prev, [id]: String(target?.quantity ?? 0) }));
   };
 
+  /** 이름/수량 편집 취소: 원래 값으로 복귀 */
   const cancelEditName = (id) => {
     const target = kits.find(k => k.id === id);
     setEditingName(prev => ({ ...prev, [id]: false }));
@@ -254,6 +314,10 @@ const KitsScreen = () => {
     setQtyDrafts(prev => ({ ...prev, [id]: String(target?.quantity ?? 0) }));
   };
 
+  /** 이름/수량 저장
+   * - 입력 검증(이름 공백/중복, 수량 0 이상)
+   * - Firestore 저장 후 변경점 요약 로그 기록
+   */
   const saveKitName = async (id) => {
     const draftName = (nameDrafts[id] || '').trim();
     if (!draftName) {
@@ -290,6 +354,9 @@ const KitsScreen = () => {
     setEditingName(prev => ({ ...prev, [id]: false }));
   };
 
+  /** 교구 카드 렌더러
+   * - 이름/수량 편집, 수리 토글, 메모 저장, 삭제 등 액션 제공
+   */
   const renderKit = ({ item }) => (
     <View style={styles.kitCard}>
       <View style={styles.kitHeader}>
@@ -372,6 +439,7 @@ const KitsScreen = () => {
     </View>
   );
 
+  // ── 화면 구성: 헤더 / 추가 입력 / 교구 목록(+로그 패널)
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -442,6 +510,9 @@ const KitsScreen = () => {
 
 export default KitsScreen;
 
+// ─────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
