@@ -29,7 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 const CONFIG = {
   links: {
-    ai: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=1f960d74357a0fac696373aa47231c9819814b7d50f96cb7e020bd713813353',
+    ai: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=1f960d474357a0fac696373aa47231c9819814b7d50f96cb7e020bd713813353',
     earthquake: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=836d40ad6724f3585ecc91c192de8f29d7b34b85db4c936465070bb8a1d25af5',
     drone: 'https://www.cnse.or.kr/main/reserve/experience_calendar.action?q=33152e18b25f10571da6b0aa11ccf9f07e6211fe37567968e6c591f23fa5c429',
     science: 'https://www.cnse.or.kr/main/reserve/guide_calendar.action?q=399c727ae1585fb2c8ac05f7295f26d0b761f9927b66e8ae3cdfc42b8534895d',
