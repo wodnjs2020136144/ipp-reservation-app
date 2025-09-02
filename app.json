@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ipp-reservation-app",
-    "slug": "ipp-reservation-app",
+    "name": "CNSE Works",
+    "slug": "CNSE Works",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jaewon01.ippreservationapp"
+      "bundleIdentifier": "com.jaewon01.CNSE Works"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +22,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jaewon01.ippreservationapp"
+      "package": "com.jaewon01.CNSE Works"
     },
     "web": {
       "favicon": "./assets/favicon.png"
