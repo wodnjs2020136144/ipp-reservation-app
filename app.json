@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CNSE Works",
-    "slug": "CNSE Works",
+    "slug": "cnse-works",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jaewon01.CNSE Works"
+      "bundleIdentifier": "com.jaewon01.cnseworks"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +22,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jaewon01.CNSE Works"
+      "package": "com.jaewon01.cnseworks"
     },
     "web": {
       "favicon": "./assets/favicon.png"
