@@ -1,4 +1,4 @@
-package com.jaewon01.ippreservationapp
+package com.jaewon01.cnseworks
 
 import android.app.Application
 import android.content.res.Configuration

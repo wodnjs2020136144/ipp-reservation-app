@@ -1,4 +1,4 @@
-package com.jaewon01.ippreservationapp
+package com.jaewon01.cnseworks
 
 import android.os.Build
 import android.os.Bundle

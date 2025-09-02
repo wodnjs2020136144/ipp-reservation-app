@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.jaewon01.ippreservationapp'
+    namespace 'com.jaewon01.cnseworks'
     defaultConfig {
-        applicationId 'com.jaewon01.ippreservationapp'
+        applicationId 'com.jaewon01.cnseworks'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
