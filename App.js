@@ -13,6 +13,7 @@ import ScheduleScreen from './screens/ScheduleScreen';
 
 import HomeScreen from './screens/HomeScreen';
 import KitsScreen from './screens/KitsScreen';
+import AiChatScreen from './screens/AiChatScreen';
 
 import { Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator } from 'react-native';
@@ -25,7 +26,7 @@ const Tab = createBottomTabNavigator();
 /**
  * MyTabs — 하단 탭 컨테이너
  *  - SafeAreaInsets 로 탭바 높이/패딩 자동 보정
- *  - 아이콘 매핑: 예약 확인(home), 교구 관리(cube), 스케줄(calendar)
+ *  - 아이콘 매핑: 예약 확인(home), AI 비서(sparkles), 교구 관리(cube), 스케줄(calendar)
  */
 function MyTabs() {
   const insets = useSafeAreaInsets();
@@ -52,6 +53,8 @@ function MyTabs() {
           let iconName;
           if (route.name === '예약 확인') {
             iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'AI 비서') {
+            iconName = focused ? 'sparkles' : 'sparkles-outline';
           } else if (route.name === '교구 관리') {
             iconName = focused ? 'cube' : 'cube-outline';
           } else if (route.name === 'Schedule') {
@@ -62,6 +65,7 @@ function MyTabs() {
       })}
     >
       <Tab.Screen name="예약 확인" component={HomeScreen} />
+      <Tab.Screen name="AI 비서" component={AiChatScreen} />
       <Tab.Screen name="교구 관리" component={KitsScreen} />
       <Tab.Screen
         name="Schedule"
