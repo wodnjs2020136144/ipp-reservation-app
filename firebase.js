@@ -46,9 +46,7 @@ const firebaseConfig = {
 // Firebase App: 이미 초기화돼 있으면 재사용
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Firestore 인스턴스 생성 및 디버그 로깅(필요 시 제거 가능)
 const db = getFirestore(app);
-console.log('✅ Firestore 인스턴스:', db);
 
 // ─────────────────────────────────────────────────────────────
 // Auth 초기화 (익명 로그인 + 영속성)
@@ -80,7 +78,6 @@ export async function ensureAuth() {
   if (!auth.currentUser) {
     try {
       await signInAnonymously(auth);
-      console.log('✅ Firebase anonymous sign‑in:', auth.currentUser.uid);
     } catch (e) {
       console.warn('⚠️ Firebase sign‑in failed:', e);
     }

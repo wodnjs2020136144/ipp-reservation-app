@@ -66,10 +66,6 @@ const HOLIDAYS = {
   '2025-12-25': '크리스마스',
 };
 
-const isHoliday = (dateStr) => HOLIDAYS.hasOwnProperty(dateStr);
-
-const zones = ['인공지능배움터', 'VR체험', '로봇배움터'];
-
 const zoneColors = {
   인공지능배움터: '#FF9F0A', // Orange
   VR체험: '#0A84FF',       // Blue
