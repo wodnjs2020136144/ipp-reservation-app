@@ -71,6 +71,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [closeMeta, setCloseMeta] = useState({});
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchFailed, setFetchFailed] = useState(false);
 
   const linePosition = useRef(new Animated.Value(0)).current;
 
@@ -100,9 +101,11 @@ const HomeScreen = () => {
     try {
       const data = await fetchAllReservations();
       setReservations(data);
+      setFetchFailed(!!data.fetchError);
       await processClosedSlots(data);
     } catch (error) {
       console.error("데이터 로딩 실패:", error);
+      setFetchFailed(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -248,6 +251,16 @@ const HomeScreen = () => {
         </View>
       </View>
 
+      {/* 서버 연결 실패 안내 배너 (데이터가 없는 것과 구분) */}
+      {!loading && fetchFailed && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning-outline" size={16} color="#B45309" />
+          <Text style={styles.errorBannerText}>
+            서버와 연결하지 못했습니다. 아래로 당겨서 다시 시도해주세요.
+          </Text>
+        </View>
+      )}
+
       {/* 로딩 인디케이터 또는 컨텐츠 */}
       {loading ? (
         <View style={styles.loaderContainer}>
@@ -333,6 +346,22 @@ const styles = StyleSheet.create({
     width: '50%',
     backgroundColor: COLORS.accent,
     borderRadius: 2,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  errorBannerText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+    flex: 1,
   },
   // --- 컨텐츠 스크롤 및 카드 스타일 ---
   scrollContent: {

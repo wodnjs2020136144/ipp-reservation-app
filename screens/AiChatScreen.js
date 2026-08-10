@@ -24,7 +24,10 @@ import {
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BASE_URL } from '../services/api';
+import { BASE_URL, fetchWithTimeout } from '../services/api';
+
+// AI 챗봇은 Gemini 응답 생성(도구 호출 포함) 시간이 걸릴 수 있어 일반 API보다 넉넉하게 설정
+const CHAT_TIMEOUT_MS = 30000;
 
 const SUGGESTIONS = [
   "오늘 드론 VR 예약 남았어?",
@@ -62,11 +65,11 @@ export default function AiChatScreen() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BASE_URL}/api/chat`, {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })
-      });
+      }, CHAT_TIMEOUT_MS);
 
       const data = await response.json();
 
