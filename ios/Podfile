@@ -60,5 +60,18 @@ target 'ippreservationapp' do
         end
       end
     end
+
+    # Workaround: RCT-Folly bundles an older `fmt` whose consteval-based format
+    # strings fail to compile under newer Xcode/Clang's stricter C++20 rules
+    # ("call to consteval function ... is not a constant expression").
+    # Disabling FMT_CONSTEVAL falls back to fmt's non-consteval code path.
+    installer.pods_project.targets.each do |target|
+      if target.name == 'fmt'
+        target.build_configurations.each do |config|
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_CONSTEVAL='
+        end
+      end
+    end
   end
 end

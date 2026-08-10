@@ -4,6 +4,14 @@
 
 예약 데이터와 AI 챗봇은 [`ipp-reservation-server`](../ipp-reservation-server) 리포지토리의 백엔드에서 제공됩니다.
 
+## 스크린샷
+
+iOS 시뮬레이터(Expo Go)에서 확인한 4개 탭 화면입니다.
+
+| 예약 확인 | AI 비서 | 교구 관리 | 스케줄 |
+|---|---|---|---|
+| ![예약 확인](docs/screenshots/home.png) | ![AI 비서](docs/screenshots/ai-chat.png) | ![교구 관리](docs/screenshots/kits.png) | ![스케줄](docs/screenshots/schedule.png) |
+
 ## 기술 스택
 
 - **프레임워크**: Expo SDK 53 / React Native 0.79.5 / React 19
