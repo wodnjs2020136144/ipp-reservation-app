@@ -95,12 +95,12 @@ eas build --profile preview
 | Firestore 보안 규칙 파일 부재 | `firestore.rules` 작성 및 `firebase deploy --only firestore:rules`로 배포 완료. `kits`/`logs`/`settings` 경로만 익명 인증 로그인 사용자에게 열고 나머지는 기본 차단 |
 | `BASE_URL` 중복 하드코딩 | `services/api.js`에서 `export const BASE_URL`로 단일화, `AiChatScreen.js`는 이를 import해서 사용. `EXPO_PUBLIC_API_BASE_URL` 환경변수로 오버라이드 가능 |
 | Firebase 설정 미환경변수화 | `EXPO_PUBLIC_FIREBASE_*` 환경변수로 오버라이드 가능하게 변경(값이 없으면 기존 기본값 사용, 기존 동작 유지) |
+| `ScheduleScreen` AsyncStorage/Firestore 동기화 경합 조건 | onSnapshot을 원격 데이터의 단일 소스로 삼아 AsyncStorage 쓰기를 한 곳으로 통합. 마운트 시 로컬 캐시를 먼저 읽어 즉시 화면을 채우고 이후 Firestore 값으로 갱신 |
+| `dayjs`/`@expo/vector-icons` 미선언, `axios` 미사용 의존성 | `package.json`에 dayjs/@expo/vector-icons 명시, axios 제거 |
 
 ### 남은 이슈
 | 심각도 | 항목 | 위치 |
 |---|---|---|
-| 높음 | `ScheduleScreen`에서 AsyncStorage(로컬 캐시)와 Firestore(원격) 동기화 순서가 보장되지 않아 값이 순간적으로 되돌아가는 경합 조건 발생 가능 | `screens/ScheduleScreen.js` (초기 로드 111-143줄, 실시간 구독 146-160줄) |
-| 높음 | `dayjs`가 `package.json`에 선언되지 않고 전이 의존성에 의존 중 — 클린 설치 시 빌드가 깨질 위험 | `package.json`, 사용처 `screens/KitsScreen.js`, `screens/ScheduleScreen.js` |
 | 중간 | `HOLIDAYS`가 2025년 하반기까지만 하드코딩되어 있어 현재(2026년) 공휴일이 반영되지 않음. `START_DATE` 등 로테이션 계산 기준값도 매직값으로 존재 | `screens/ScheduleScreen.js` |
 | 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
 | 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
