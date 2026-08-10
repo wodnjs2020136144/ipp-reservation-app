@@ -32,22 +32,7 @@ import {
   saveScheduleConfig,
   subscribeScheduleConfig
 } from '../services/scheduleService';
-
-// =====================================================
-// # Design Tokens & Constants
-// =====================================================
-const COLORS = {
-  primary: '#0F172A',       // Slate 900
-  primaryLight: '#475569',  // Slate 600
-  accent: '#007AFF',        // Blue
-  accentLight: '#E0F2FE',   // Light Blue
-  danger: '#EF4444',        // Red
-  dangerLight: '#FEE2E2',   // Light Red
-  success: '#10B981',       // Green
-  bg: '#F8FAFC',
-  cardBg: '#FFFFFF',
-  border: '#E2E8F0',
-};
+import { COLORS } from '../constants/theme';
 
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
@@ -99,8 +84,13 @@ const zoneIcons = {
 };
 
 const TASKS = ['인공지능배움터', 'VR체험', '로봇배움터'];
-const START_DATE = '2025-07-01';
 const WEEKEND_TASKS = ['인공지능배움터', 'VR체험'];
+
+// 근무 구역 로테이션의 기준 시작일. 평일(화~금) 근무일수를 이 날짜부터 세어
+// 담당 구역을 순환 배정하므로(getZoneForDate), 값을 바꾸면 과거~현재 전체
+// 로테이션 결과가 달라진다. 실제로 로테이션 운영을 시작한 날짜와 동일해야 함.
+const START_DATE = '2025-07-01';
+// 위와 동일한 기준의 월 단위 값(주말 구역 로테이션 계산에 사용, getWeekendRoleMapping 등)
 const START_MONTH = '2025-07';
 
 const ScheduleScreen = () => {

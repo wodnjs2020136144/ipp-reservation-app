@@ -34,21 +34,10 @@ import {
 import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
 import dayjs from 'dayjs';
+import { COLORS as THEME_COLORS } from '../constants/theme';
 
-// 디자인 시스템 컬러 토큰
-const COLORS = {
-  primary: '#0F172A',      // Slate 900 (헤더 및 주요 텍스트)
-  primaryLight: '#334155', // Slate 700 (서브 텍스트)
-  accent: '#007AFF',       // iOS Blue (버튼 및 하이라이트)
-  accentLight: '#E0F2FE',  // Light Blue (배경 강조)
-  danger: '#EF4444',       // Red (삭제 등)
-  dangerLight: '#FEE2E2',  // Light Red (경고 배경)
-  success: '#10B981',      // Green (메모 저장 등)
-  successLight: '#D1FAE5',  // Light Green (성공 배경)
-  bg: '#F8FAFC',           // Slate 50 (전체 배경)
-  cardBg: '#FFFFFF',       // White (카드 배경)
-  border: '#E2E8F0',       // Slate 200 (경계선)
-};
+// 디자인 시스템 컬러 토큰 (공용 팔레트 기반, primaryLight만 이 화면 전용으로 더 진하게 오버라이드)
+const COLORS = { ...THEME_COLORS, primaryLight: '#334155' }; // Slate 700 (서브 텍스트)
 
 const KitsScreen = () => {
   const [kits, setKits] = useState([]);

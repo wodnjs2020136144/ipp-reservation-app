@@ -32,6 +32,7 @@ import { fetchAllReservations } from '../services/api';
 import ReservationItem from '../components/ReservationItem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS } from '../constants/theme';
 
 // =====================================================
 // # Constants & Config
@@ -53,16 +54,6 @@ const CONFIG = {
     toddler: '유아과학관 자유체험',
     robot: '로봇댄스',
   },
-};
-
-const COLORS = {
-  primary: '#0F172A',      // Slate 900
-  secondary: '#475569',    // Slate 600
-  accent: '#007AFF',       // Blue
-  accentGradient: ['#007AFF', '#0051A8'],
-  bg: '#F8FAFC',
-  cardBg: '#FFFFFF',
-  border: '#E2E8F0',
 };
 
 const HomeScreen = () => {
