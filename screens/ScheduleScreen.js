@@ -1,35 +1,60 @@
 /**
  * ScheduleScreen
  * =====================================================
- * 기능 요약
- * -----------------------------------------------------
- * • 월간/주간 근무 스케줄 자동 계산 (평일·주말 로테이션 규칙)
- * • 날짜 메모 · 월차(연차) 관리 (AsyncStorage ↔ Firestore 동기화)
- * • UI: Month Calendar + Week Grid, 직원 탭, 메모/이름 수정 모달
+ * 근무 스케줄 관리 화면 (UI/UX 및 아키텍처 고도화)
+ *
+ * 기능 요약:
+ * - 월간/주간 근무 스케줄 자동 로테이션 계산
+ * - 일별 근무 메모 및 월차(연차) 등록 및 동기화 (AsyncStorage ↔ Firestore)
+ * - scheduleService 모듈을 통한 데이터 관심사 분리 완료
+ * - Premium UI: Slate & Blue 디자인 톤, 세련된 캘린더 디자인, 커스텀 모달
  */
 
-// =====================================================
-// Imports
-// =====================================================
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView, View, Text, TouchableOpacity, FlatList, StyleSheet, Modal, TextInput, Button, ScrollView, Switch } from 'react-native';
-import { StatusBar, Platform } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  TextInput,
+  ScrollView,
+  Switch,
+  Platform,
+  StatusBar,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import dayjs from 'dayjs';
-import { db } from '../firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import {
+  saveScheduleConfig,
+  subscribeScheduleConfig
+} from '../services/scheduleService';
 
 // =====================================================
-// Constants & Helpers
+// # Design Tokens & Constants
 // =====================================================
+const COLORS = {
+  primary: '#0F172A',       // Slate 900
+  primaryLight: '#475569',  // Slate 600
+  accent: '#007AFF',        // Blue
+  accentLight: '#E0F2FE',   // Light Blue
+  danger: '#EF4444',        // Red
+  dangerLight: '#FEE2E2',   // Light Red
+  success: '#10B981',       // Green
+  bg: '#F8FAFC',
+  cardBg: '#FFFFFF',
+  border: '#E2E8F0',
+};
+
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
   const day = d.getDay();
-  return day === 0 || day === 6; // Sunday(0) or Saturday(6)
+  return day === 0 || day === 6;
 };
 
-// 2025 공휴일 (스케줄 로직에는 영향 없음)
 const HOLIDAYS = {
   '2025-08-15': '광복절',
   '2025-10-03': '개천절',
@@ -45,111 +70,112 @@ const isHoliday = (dateStr) => HOLIDAYS.hasOwnProperty(dateStr);
 
 const zones = ['인공지능배움터', 'VR체험', '로봇배움터'];
 
-const weekendZoneColors = {
-  인공지능배움터: '#FFA726', // deep orange
-  VR체험: '#42A5F5', // vivid blue
-  로봇배움터: '#66BB6A', // medium green
+const zoneColors = {
+  인공지능배움터: '#FF9F0A', // Orange
+  VR체험: '#0A84FF',       // Blue
+  로봇배움터: '#30D158',     // Green
 };
 
-// 직무별 아이콘 (Ionicons)
 const zoneIcons = {
-  인공지능배움터: { lib: 'fa', name: 'brain' },               // FontAwesome5
-  VR체험: { lib: 'fa', name: 'vr-cardboard' }, // FontAwesome5
-  로봇배움터: { lib: 'fa', name: 'robot' },              // FontAwesome5
+  인공지능배움터: { lib: 'fa', name: 'brain' },
+  VR체험: { lib: 'fa', name: 'vr-cardboard' },
+  로봇배움터: { lib: 'fa', name: 'robot' },
 };
 
-const weekendBorderColor = '#8E24AA'; // purple for weekend entries
+const TASKS = ['인공지능배움터', 'VR체험', '로봇배움터'];
+const START_DATE = '2025-07-01';
+const WEEKEND_TASKS = ['인공지능배움터', 'VR체험'];
+const START_MONTH = '2025-07';
 
-// =====================================================
-// Component
-// =====================================================
 const ScheduleScreen = () => {
-  // ----------------------- Init: Load settings -----------------------
-  useEffect(() => {
-    (async () => {
-      try {
-        // Load local
-        const emps = await AsyncStorage.getItem('employees');
-        const memos = await AsyncStorage.getItem('dateMemos');
-        let localEmps = emps ? JSON.parse(emps) : null;
-        let localDateMemos = memos ? JSON.parse(memos) : null;
-        // Load Firestore
-        const docRef = doc(db, 'settings', 'scheduleConfig');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.employees) localEmps = data.employees;
-          if (data.dateMemos) localDateMemos = data.dateMemos;
-          // Persist to local
-          await AsyncStorage.setItem('employees', JSON.stringify(localEmps));
-          await AsyncStorage.setItem('dateMemos', JSON.stringify(localDateMemos));
-        }
-        if (localEmps) setEmployees(localEmps);
-        // dateMemos is now per‑employee array of objects
-        if (localDateMemos) {
-          // 인덱스가 비어있으면 빈 객체로 채워서 undefined 제거
-          const sanitized = (localEmps || ['', '', '']).map((_, i) => localDateMemos[i] || {});
-          setDateMemos(sanitized);
-        } else {
-          // per‑employee date memos: array of objects for each employee
-          setDateMemos((localEmps || ['', '', '']).map(() => ({})));
-        }
-      } catch (e) {
-        console.warn('Failed to load schedule settings', e);
-      }
-    })();
-  }, []);
-  // ----------------------- Firestore Sync -----------------------
-  useEffect(() => {
-    const configRef = doc(db, 'settings', 'scheduleConfig');
-    const unsubscribe = onSnapshot(configRef, async snap => {
-      if (!snap.exists()) return;
-      const data = snap.data();
-
-      // 상태 업데이트
-      if (data.employees) setEmployees(data.employees);
-
-      if (data.dateMemos) {
-        const sanitized = (data.employees || ['', '', '']).map(
-          (_, i) => data.dateMemos[i] || {}
-        );
-        setDateMemos(sanitized);
-      }
-
-      // 로컬 캐시도 갱신
-      await AsyncStorage.multiSet([
-        ['employees', JSON.stringify(data.employees)],
-        ['dateMemos', JSON.stringify(data.dateMemos)],
-      ]);
-    });
-
-    return () => unsubscribe();
-  }, []);
-  // ----------------------- State -----------------------
   const [employees, setEmployees] = useState(['', '', '']);
-  // 각 직원마다 독립된 빈 객체를 생성해 동일 레퍼런스 문제 방지
-  const [dateMemos, setDateMemos] = useState(() =>
-    Array.from({ length: (employees && employees.length) || 3 }, () => ({}))
-  );
-  // 직원별 사용한 월차(연차) 개수 계산 – dateMemos 변경시 자동 갱신
-  const leaveCounts = useMemo(() =>
-    dateMemos.map(dm =>
-      Object.values(dm || {}).filter(v => v && v.isLeave).length
-    ),
-    [dateMemos]
-  );
-  const [modalDate, setModalDate] = useState(null);       // currently selected date string
+  const [dateMemos, setDateMemos] = useState(() => Array.from({ length: 3 }, () => ({})));
+  const [loading, setLoading] = useState(true);
+
+  // 모달 상태
+  const [modalDate, setModalDate] = useState(null);
   const [modalMemo, setModalMemo] = useState('');
   const [modalOverrideZones, setModalOverrideZones] = useState([]);
   const [modalLeave, setModalLeave] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [editNameModalVisible, setEditNameModalVisible] = useState(false);
   const [inputName, setInputName] = useState('');
-  const [monthOffset, setMonthOffset] = useState(0); // 0 = current month, up to 11 - baseMonth
+
+  // 캘린더 및 주간 오프셋
+  const [monthOffset, setMonthOffset] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0);
   const weekScrollRef = useRef(null);
 
-  // Reset weekOffset to 0 whenever monthOffset changes
+  // 초기 마운트 시: 1) AsyncStorage 캐시로 즉시 화면을 채우고
+  // 2) Firestore를 단일 소스로 삼아 실시간 구독을 시작한다.
+  // 예전에는 최초 로드(fetchScheduleConfig 1회 조회)와 실시간 구독(onSnapshot)이
+  // 각자 AsyncStorage.multiSet을 호출해 두 비동기 쓰기가 겹치면 값이 순간적으로
+  // 되돌아가는 경합 조건이 있었다. 이제는 AsyncStorage 쓰기가 onSnapshot
+  // 콜백 한 곳에서만 일어나도록 통합했다.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const emps = await AsyncStorage.getItem('employees');
+        const memos = await AsyncStorage.getItem('dateMemos');
+        if (cancelled) return;
+
+        const localEmps = emps ? JSON.parse(emps) : null;
+        const localDateMemos = memos ? JSON.parse(memos) : null;
+
+        if (localEmps) {
+          setEmployees(localEmps);
+          // 로컬 캐시가 있으면 네트워크를 기다리지 않고 화면을 먼저 보여준다.
+          // 이후 onSnapshot이 도착하면 Firestore 값으로 갱신된다.
+          setLoading(false);
+        }
+        if (localDateMemos) {
+          const sanitized = (localEmps || ['', '', '']).map((_, i) => localDateMemos[i] || {});
+          setDateMemos(sanitized);
+        } else if (localEmps) {
+          setDateMemos(localEmps.map(() => ({})));
+        }
+      } catch (e) {
+        console.warn('로컬 스케줄 캐시 불러오기 실패:', e);
+      }
+    })();
+
+    const unsubscribe = subscribeScheduleConfig(async (data) => {
+      if (cancelled || !data) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      const nextEmps = data.employees || ['', '', ''];
+      const nextDateMemos = nextEmps.map((_, i) => (data.dateMemos || [])[i] || {});
+
+      setEmployees(nextEmps);
+      setDateMemos(nextDateMemos);
+      setLoading(false);
+
+      try {
+        await AsyncStorage.multiSet([
+          ['employees', JSON.stringify(nextEmps)],
+          ['dateMemos', JSON.stringify(nextDateMemos)],
+        ]);
+      } catch (e) {
+        console.warn('스케줄 데이터 로컬 캐시 저장 실패:', e);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  // 연차 사용일수 실시간 계산
+  const leaveCounts = useMemo(() =>
+    dateMemos.map(dm => Object.values(dm || {}).filter(v => v && v.isLeave).length),
+    [dateMemos]
+  );
+
   useEffect(() => {
     setWeekOffset(0);
     if (weekScrollRef.current) {
@@ -157,178 +183,132 @@ const ScheduleScreen = () => {
     }
   }, [monthOffset]);
 
-  // 수평 스크롤: 주간이 바뀔 때마다 첫 카드로 스크롤
   useEffect(() => {
     if (weekScrollRef.current) {
       weekScrollRef.current.scrollTo({ x: 0, animated: false });
     }
   }, [weekOffset]);
 
-  // ----------------------- Date math helpers -----------------------
-  // 평일 직무 순환 리스트 (인공지능배움터 -> VR체험 -> 로봇)
-  const TASKS = ['인공지능배움터', 'VR체험', '로봇배움터'];
-  // 직무 순환 시작 기준일 (직원1이 인공지능으로 시작하는 날짜)
-  const START_DATE = '2025-07-01'; // YYYY-MM-DD
-  // 주말 전용 직무 (로봇배움터 제외)
-  const WEEKEND_TASKS = ['인공지능배움터', 'VR체험'];
-  const START_MONTH = '2025-07'; // YYYY-MM (7월을 기준으로 월 단위 로테이션 계산)
+  useEffect(() => {
+    if (editNameModalVisible) {
+      setInputName(employees[selectedIndex] || '');
+    }
+  }, [editNameModalVisible]);
 
-  // START_MONTH로부터 현재 월까지의 차이를 구해 직원 로테이션에 사용
+  const saveName = async () => {
+    const newEmps = [...employees];
+    newEmps[selectedIndex] = inputName.trim();
+    setEmployees(newEmps);
+
+    await AsyncStorage.setItem('employees', JSON.stringify(newEmps));
+    await saveScheduleConfig(newEmps, dateMemos);
+    setEditNameModalVisible(false);
+  };
+
   const monthDiffFromStart = (year, month) => {
     const start = dayjs(START_MONTH + '-01');
     const cur = dayjs(new Date(year, month, 1));
     return cur.diff(start, 'month');
   };
 
-  // 이번 달의 주말 역할(일요일 담당, 토요일 슬롯A, 슬롯B)을 직원 인덱스에 매핑
-  // 초기(2025-07): sun=직원1(0), satA=직원2(1), satB=직원3(2)
   const getWeekendRoleMapping = (year, month) => {
     const diff = monthDiffFromStart(year, month);
-    // base order [0,1,2] => rotate by diff
     const base = [0, 1, 2];
     const rotated = base.map(i => (i + diff) % 3);
     return {
-      sun: rotated[0],  // 일요일 담당 직원 인덱스
-      satA: rotated[1], // 토요일 오전 AI/오후 VR 패턴 담당 직원 인덱스 (초기 기준)
-      satB: rotated[2], // 토요일 오전 VR/오후 AI 패턴 담당 직원 인덱스 (초기 기준)
+      sun: rotated[0],
+      satA: rotated[1],
+      satB: rotated[2],
     };
   };
 
-  // 토요일 개수(4 or 5)에 따라 교대 시작 주차를 반환 (1-based)
   const getSaturdaySwapStartWeek = (saturdayCount) => (saturdayCount === 4 ? 3 : 4);
 
-  useEffect(() => {
-    if (modalVisible) {
-      setInputName(employees[selectedIndex] || '');
-    }
-  }, [modalVisible]);
-
-  // Handle name input
-  const onSelectTab = index => {
-    setSelectedIndex(index);
-  };
-
-  const saveName = async () => {
-    const newEmps = [...employees];
-    newEmps[selectedIndex] = inputName.trim();
-    setEmployees(newEmps);
-    // persist changes
-    await AsyncStorage.setItem('employees', JSON.stringify(newEmps));
-    await AsyncStorage.setItem('dateMemos', JSON.stringify(dateMemos));
-    // persist to Firestore (undefined 제거)
-    const configRef = doc(db, 'settings', 'scheduleConfig');
-    await setDoc(configRef, {
-      employees: newEmps,
-      dateMemos: dateMemos.map(v => v || {}),
-    });
-    setModalVisible(false);
-  };
-
-  // Compute displayed month/year based on offset
   const base = dayjs();
-  const baseMonth = base.month();      // zero-based
+  const baseMonth = base.month();
   const baseYear = base.year();
-  // Allow going back to START_MONTH (inclusive)
-  const minMonthOffset = React.useMemo(() => {
+
+  const minMonthOffset = useMemo(() => {
     const curMonthStart = dayjs(new Date(baseYear, baseMonth, 1)).startOf('month');
     const startMonthStart = dayjs(START_MONTH + '-01').startOf('month');
-    // Negative number or 0: how many months back from current month to START_MONTH
     return startMonthStart.diff(curMonthStart, 'month');
   }, [baseYear, baseMonth]);
+
   const displayMonthIndex = baseMonth + monthOffset;
   const displayYear = baseYear + Math.floor(displayMonthIndex / 12);
   const displayMonth = displayMonthIndex % 12;
   const today = dayjs();
-  // For weekly schedule base (start of week), depends on monthOffset
-  const baseStart = monthOffset === 0
-    ? today
-    : dayjs(new Date(displayYear, displayMonth, 1));
-  // 최소 주간 오프셋: START_MONTH(2025‑07)의 주 시작 이전으로 못 가도록 제한
+
+  const baseStart = monthOffset === 0 ? today : dayjs(new Date(displayYear, displayMonth, 1));
+
   const earliestWeekOffset = useMemo(() => {
     const earliest = dayjs(START_MONTH + '-01').startOf('week');
     const baseWeek = baseStart.startOf('week');
-    return earliest.diff(baseWeek, 'week');   // negative (or 0)
+    return earliest.diff(baseWeek, 'week');
   }, [baseStart]);
-  // 화~금 평일만 카운트하여 순환 인덱스를 계산
+
   const getZoneForDate = (empIndex, dateStr) => {
     const target = dayjs(dateStr);
     const start = dayjs(START_DATE);
     if (target.isBefore(start, 'day')) return TASKS[empIndex % TASKS.length];
 
-    let weekdayCount = 0; // 화~금 근무일 카운트
+    let weekdayCount = 0;
     for (let d = start; d.isBefore(target, 'day') || d.isSame(target, 'day'); d = d.add(1, 'day')) {
       const dow = d.day();
       if (dow >= 2 && dow <= 5) {
         weekdayCount += 1;
       }
     }
-    // 첫 근무일(START_DATE)도 포함해서 계산했으므로 -1 보정 후 offset
-    const offset = empIndex; // 직원1=0, 직원2=1, 직원3=2
+    const offset = empIndex;
     const idx = ((weekdayCount - 1) + offset) % TASKS.length;
     return TASKS[idx];
   };
 
-  // ----------------------- Derived Data -----------------------
+  // 스케줄 계산 데이터 유도
   const scheduleData = useMemo(() => {
     const list = [];
     const month = displayMonth;
     const year = displayYear;
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
 
-    // 1) 평일(화~금) 스케줄: 기존 로직 그대로
+    // 1) 평일(화~금) 로직
     for (let date = 1; date <= lastDate; date++) {
       const current = dayjs(new Date(year, month, date));
       const dow = current.day();
-      if (dow >= 2 && dow <= 5) { // Tue~Fri
+      if (dow >= 2 && dow <= 5) {
         const ds = current.format('YYYY-MM-DD');
         const zone = getZoneForDate(selectedIndex, ds);
         list.push({ date: ds, zone });
       }
     }
 
-    // 2) 주말(토/일) 스케줄: 평일 로직과 완전히 분리하여 처리
-    // 토요일은 2명 근무, 일요일은 1명 근무. 로봇배움터 제외.
-    // 주말 직원 포지션은 달 단위로 로테이션.
-
-    // 토요일 목록 추출 및 주차 계산
+    // 2) 주말(토/일) 로직
     const saturdays = [];
     for (let d = 1; d <= lastDate; d++) {
       const cur = dayjs(new Date(year, month, d));
       if (cur.day() === 6) saturdays.push(cur);
     }
     const saturdayCount = saturdays.length;
-    const swapStartWeek = getSaturdaySwapStartWeek(saturdayCount); // 3 or 4
+    const swapStartWeek = getSaturdaySwapStartWeek(saturdayCount);
 
-    // 일요일 목록 추출
     const sundays = [];
     for (let d = 1; d <= lastDate; d++) {
       const cur = dayjs(new Date(year, month, d));
       if (cur.day() === 0) sundays.push(cur);
     }
 
-    // 이번 달 역할 매핑 (직원 인덱스)
     const { sun: sunIdx, satA: satAIdx, satB: satBIdx } = getWeekendRoleMapping(year, month);
+    const patternA = ['인공지능배움터', 'VR체험'];
+    const patternB = ['VR체험', '인공지능배움터'];
 
-    // 토요일 패턴 정의
-    const patternA = ['인공지능배움터', 'VR체험']; // 오전 AI, 오후 VR
-    const patternB = ['VR체험', '인공지능배움터']; // 오전 VR, 오후 AI
-
-    // 토요일 처리
     saturdays.forEach((satDate, idx) => {
-      // idx: 0-based (첫 토요일이 idx=0) → weekNum = idx+1
       const weekNum = idx + 1;
-      const beforeSwap = weekNum < swapStartWeek; // 교대 전 구간
-      const afterSwap = !beforeSwap;              // 교대 후 구간
-
-      // 교대 전/후에 따라 패턴을 적용
-      const thisPatternA = beforeSwap ? patternA : patternB; // slotA 담당자의 패턴
-      const thisPatternB = beforeSwap ? patternB : patternA; // slotB 담당자의 패턴
-
+      const beforeSwap = weekNum < swapStartWeek;
+      const thisPatternA = beforeSwap ? patternA : patternB;
+      const thisPatternB = beforeSwap ? patternB : patternA;
       const ds = satDate.format('YYYY-MM-DD');
 
-      // 선택된 직원(selectedIndex)에 따라 해당 날짜에 자신이 맡은 직무를 list에 추가
       if (selectedIndex === satAIdx) {
-        // 오전, 오후 두 개 등록
         list.push({ date: ds, zone: thisPatternA[0] });
         list.push({ date: ds, zone: thisPatternA[1] });
       }
@@ -338,11 +318,9 @@ const ScheduleScreen = () => {
       }
     });
 
-    // 일요일 처리: 한 명이 두 직무 모두 담당 (오전/오후 구분 없음이지만, 아이콘/표시를 위해 두 개로 넣어도 됨)
     sundays.forEach(sunDate => {
       const ds = sunDate.format('YYYY-MM-DD');
       if (selectedIndex === sunIdx) {
-        // 두 직무 모두 등록 (표시용)
         list.push({ date: ds, zone: WEEKEND_TASKS[0] });
         list.push({ date: ds, zone: WEEKEND_TASKS[1] });
       }
@@ -351,14 +329,11 @@ const ScheduleScreen = () => {
     return list;
   }, [selectedIndex, displayMonth, displayYear, monthOffset]);
 
-  // Month view uses scheduleData for calendarData building
-  const monthData = scheduleData;
-
-  // ----------------------- Calendar Cell Build -----------------------
+  // 달력 격자 구성
   const calendarData = useMemo(() => {
     const year = displayYear;
-    const month = displayMonth; // 0-index
-    const firstDay = dayjs(new Date(year, month, 1)).day(); // 0 (Sun)~6
+    const month = displayMonth;
+    const firstDay = dayjs(new Date(year, month, 1)).day();
     const lastDate = dayjs(new Date(year, month + 1, 0)).date();
 
     const cells = [];
@@ -367,670 +342,797 @@ const ScheduleScreen = () => {
     }
     for (let d = 1; d <= lastDate; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const schedules = monthData
+      const schedules = scheduleData
         .filter(it => it.date === dateStr)
-        .map(it => ({
-          label: isWeekend(it.date) ? `${it.zone}` : it.zone,
-          zone: it.zone,
-        }));
+        .map(it => ({ label: it.zone, zone: it.zone }));
+      
       const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
       if (Array.isArray(overrideZones)) {
         schedules.splice(0, schedules.length);
         overrideZones.forEach(z => {
-          schedules.push({ label: isWeekend(dateStr) ? `${z}` : z, zone: z });
+          schedules.push({ label: z, zone: z });
         });
       }
+
       const holidayName = HOLIDAYS[dateStr];
       const hasMemo = !!((dateMemos[selectedIndex] || {})[dateStr]?.memo?.trim());
-      cells.push({ day: d, date: dateStr, schedules, key: dateStr, isHoliday: !!holidayName, holidayName, hasMemo });
+      cells.push({
+        day: d,
+        date: dateStr,
+        schedules,
+        key: dateStr,
+        isHoliday: !!holidayName,
+        holidayName,
+        hasMemo
+      });
     }
     while (cells.length % 7 !== 0) {
       cells.push({ empty: true, key: `e${cells.length}` });
     }
     return cells;
-  }, [monthData, displayYear, displayMonth, dateMemos, selectedIndex]);
+  }, [scheduleData, displayYear, displayMonth, dateMemos, selectedIndex]);
 
-  // =====================================================
-  // JSX
-  // =====================================================
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* 캘린더 연월 조작 헤더 */}
+      <View style={styles.header}>
         <TouchableOpacity
           disabled={monthOffset <= minMonthOffset}
           onPress={() => setMonthOffset(prev => Math.max(minMonthOffset, prev - 1))}
+          style={styles.headerNavBtn}
         >
-          <Ionicons name="chevron-back" size={24} color={monthOffset <= minMonthOffset ? '#CCC' : '#000'} />
+          <Ionicons name="chevron-back" size={22} color={monthOffset <= minMonthOffset ? '#CBD5E1' : COLORS.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>
-          {displayYear}년 {String(displayMonth + 1).padStart(2, '0')}월
+        <Text style={styles.headerTitle}>
+          {displayYear}년 {String(displayMonth + 1).padStart(2, '0')}월 스케줄
         </Text>
         <TouchableOpacity
           disabled={monthOffset === (11 - baseMonth)}
           onPress={() => setMonthOffset(prev => prev + 1)}
+          style={styles.headerNavBtn}
         >
-          <Ionicons name="chevron-forward" size={24} color={monthOffset === (11 - baseMonth) ? '#CCC' : '#000'} />
+          <Ionicons name="chevron-forward" size={22} color={monthOffset === (11 - baseMonth) ? '#CBD5E1' : COLORS.primary} />
         </TouchableOpacity>
       </View>
-      {/* Date Memo/Leave Modal */}
-      <Modal visible={modalDate !== null} transparent>
-        <View style={styles.modalContainer}>
+
+      {/* 연차/메모 변경 모달 */}
+      <Modal visible={modalDate !== null} transparent animationType="fade">
+        <View style={styles.modalBg}>
           <View style={styles.modalContent}>
-            <Text style={{ marginBottom: 8 }}>{modalDate} 수정</Text>
-            <TextInput
-              placeholder="메모 입력"
-              value={modalMemo}
-              onChangeText={setModalMemo}
-              style={styles.input}
-            />
-            {/* 사용한 월차 개수 표시 */}
-            <Text style={{ marginBottom: 8, fontSize: 13, color: '#666' }}>
-              사용한 월차: {leaveCounts[selectedIndex]}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text>월차</Text>
-              <Switch value={modalLeave} onValueChange={setModalLeave} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderTitle}>{modalDate} 일정 수정</Text>
+              <TouchableOpacity onPress={() => setModalDate(null)}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
             </View>
-            {/* 직무 수정 영역 */}
-            <Text style={{ marginBottom: 6 }}>직무</Text>
-            {(() => {
-              if (!modalDate) return null;
-              const weekend = isWeekend(modalDate);
-              const candidateZones = weekend ? WEEKEND_TASKS : TASKS;
 
-              const toggleZone = (z) => {
-                setModalOverrideZones(prev => {
-                  if (prev.includes(z)) {
-                    return prev.filter(v => v !== z);
-                  } else {
-                    return [...prev, z];
-                  }
-                });
-              };
+            <View style={styles.modalBody}>
+              {/* 메모 입력 */}
+              <Text style={styles.modalLabel}>일정 메모</Text>
+              <TextInput
+                placeholder="오늘의 특이사항 또는 메모 입력"
+                placeholderTextColor="#94A3B8"
+                value={modalMemo}
+                onChangeText={setModalMemo}
+                style={styles.input}
+              />
 
-              return (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
-                  {candidateZones.map(z => (
-                    <TouchableOpacity
-                      key={z}
-                      onPress={() => toggleZone(z)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: modalOverrideZones.includes(z) ? '#007aff' : '#ccc',
-                        backgroundColor: modalOverrideZones.includes(z) ? '#E3F2FD' : '#fff',
-                        marginRight: 6,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <Text style={{ color: '#000', fontSize: 12 }}>{z}</Text>
-                    </TouchableOpacity>
-                  ))}
+              {/* 연차(월차) 관리 */}
+              <View style={styles.switchRow}>
+                <View>
+                  <Text style={styles.switchLabel}>월차(연차) 신청</Text>
+                  <Text style={styles.switchSubLabel}>사용한 월차 누적: {leaveCounts[selectedIndex]}일</Text>
                 </View>
-              );
-            })()}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Switch
+                  value={modalLeave}
+                  onValueChange={setModalLeave}
+                  trackColor={{ false: '#CBD5E1', true: COLORS.accent }}
+                />
+              </View>
+
+              {/* 직무 선택 */}
+              <Text style={styles.modalLabel}>담당 직무 편집 (커스텀)</Text>
+              {(() => {
+                if (!modalDate) return null;
+                const weekend = isWeekend(modalDate);
+                const candidateZones = weekend ? WEEKEND_TASKS : TASKS;
+
+                const toggleZone = (z) => {
+                  setModalOverrideZones(prev => 
+                    prev.includes(z) ? prev.filter(v => v !== z) : [...prev, z]
+                  );
+                };
+
+                return (
+                  <View style={styles.modalZones}>
+                    {candidateZones.map(z => {
+                      const active = modalOverrideZones.includes(z);
+                      return (
+                        <TouchableOpacity
+                          key={z}
+                          onPress={() => toggleZone(z)}
+                          style={[
+                            styles.zonePill,
+                            active && styles.zonePillActive
+                          ]}
+                        >
+                          <Text style={[styles.zonePillText, active && styles.zonePillTextActive]}>{z}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
+            </View>
+
+            <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.btn, styles.btnCancel]}
+                onPress={() => setModalDate(null)}
+              >
+                <Text style={styles.btnCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnSave]}
                 onPress={async () => {
                   const updatedAll = [...dateMemos];
                   const empMemos = { ...(updatedAll[selectedIndex] || {}) };
                   empMemos[modalDate] = { memo: modalMemo, isLeave: modalLeave, overrideZones: modalOverrideZones };
                   updatedAll[selectedIndex] = empMemos;
 
-                  // undefined → {} 로 정규화
                   const sanitized = updatedAll.map(v => v || {});
                   setDateMemos(sanitized);
 
                   await AsyncStorage.setItem('dateMemos', JSON.stringify(sanitized));
-                  const configRef = doc(db, 'settings', 'scheduleConfig');
-                  await setDoc(configRef, { dateMemos: sanitized }, { merge: true });
-
+                  await saveScheduleConfig(employees, sanitized);
                   setModalDate(null);
-                }}>
-                <Text style={styles.modalButtonText}>저장</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: '#ccc' }]}
-                onPress={() => setModalDate(null)}
+                }}
               >
-                <Text style={styles.modalButtonText}>취소</Text>
+                <Text style={styles.btnSaveText}>저장하기</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={modalVisible} transparent>
-        <View style={styles.modalContainer}>
+      {/* 직원 이름 수정 모달 */}
+      <Modal visible={editNameModalVisible} transparent animationType="fade">
+        <View style={styles.modalBg}>
           <View style={styles.modalContent}>
-            <Text style={{ marginBottom: 8, fontSize: 16, fontWeight: '600' }}>
-              {`직원 ${selectedIndex + 1} 이름 수정`}
-            </Text>
-            <TextInput
-              placeholder="직원 이름 입력"
-              value={inputName}
-              onChangeText={setInputName}
-              style={styles.input}
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <TouchableOpacity style={styles.modalButton} onPress={saveName}>
-                <Text style={styles.modalButtonText}>저장</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderTitle}>직원 이름 수정</Text>
+              <TouchableOpacity onPress={() => setEditNameModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: '#ccc' }]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>취소</Text>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>{`직원 ${selectedIndex + 1}의 새 이름`}</Text>
+              <TextInput
+                placeholder="이름 입력"
+                placeholderTextColor="#94A3B8"
+                value={inputName}
+                onChangeText={setInputName}
+                style={styles.input}
+              />
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setEditNameModalVisible(false)}>
+                <Text style={styles.btnCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnSave]} onPress={saveName}>
+                <Text style={styles.btnSaveText}>저장하기</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <View style={styles.selector}>
+      {/* 직원 탭 바 */}
+      <View style={styles.tabBar}>
         {employees.map((name, idx) => (
           <TouchableOpacity
             key={idx}
-            style={[styles.navItem, selectedIndex === idx && styles.navItemActive]}
-            onPress={() => onSelectTab(idx)}
-            onLongPress={() => setModalVisible(true)}
+            style={[styles.tabItem, selectedIndex === idx && styles.tabItemActive]}
+            onPress={() => setSelectedIndex(idx)}
+            onLongPress={() => {
+              setSelectedIndex(idx);
+              setEditNameModalVisible(true);
+            }}
           >
-            <Text style={[styles.navText, selectedIndex === idx && styles.navTextActive]}>
+            <Text style={[styles.tabText, selectedIndex === idx && styles.tabTextActive]}>
               {name || `직원 ${idx + 1}`}
             </Text>
+            {selectedIndex === idx && <View style={styles.tabLine} />}
           </TouchableOpacity>
         ))}
       </View>
 
-      <ScrollView style={styles.verticalScroll} contentContainerStyle={{ paddingBottom: 80 }}>
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+          <Text style={styles.loaderText}>근무 스케줄 동기화 중...</Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.mainScroll} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          {/* 달력 카드 */}
+          <View style={styles.calendarCard}>
+            <View style={styles.weekHeader}>
+              {['일', '월', '화', '수', '목', '금', '토'].map((day, idx) => (
+                <Text key={day} style={[styles.weekHeaderCell, (idx === 0 || idx === 6) && styles.weekendHeaderCell]}>
+                  {day}
+                </Text>
+              ))}
+            </View>
 
-        {/* Monthly calendar always shown */}
-        <View style={styles.calendarCard}>
-          <View style={styles.weekHeader}>
-            {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-              <Text key={day} style={styles.weekHeaderCell}>
-                {day}
-              </Text>
-            ))}
+            <View style={styles.calendarGrid}>
+              {calendarData.map(cell =>
+                cell.empty ? (
+                  <View key={cell.key} style={styles.calCellEmpty} />
+                ) : (
+                  <TouchableOpacity
+                    key={cell.key}
+                    onPress={() => {
+                      setModalDate(cell.date);
+                      const currentMemos = dateMemos[selectedIndex] || {};
+                      setModalMemo(currentMemos[cell.date]?.memo || '');
+                      setModalLeave(currentMemos[cell.date]?.isLeave || false);
+                      const origZones = scheduleData.filter(it => it.date === cell.date).map(it => it.zone);
+                      const overrideData = (dateMemos[selectedIndex] || {})[cell.date]?.overrideZones;
+                      setModalOverrideZones(Array.isArray(overrideData) ? overrideData : origZones);
+                    }}
+                    style={[
+                      styles.calCell,
+                      isWeekend(cell.date) && styles.calCellWeekend,
+                      cell.isHoliday && styles.calCellHoliday,
+                      cell.date === today.format('YYYY-MM-DD') && styles.calCellToday,
+                      (dateMemos[selectedIndex]?.[cell.date]?.isLeave) && styles.calCellLeave,
+                    ]}
+                  >
+                    <View style={styles.cellHeader}>
+                      <Text style={[
+                        styles.calDate,
+                        isWeekend(cell.date) && styles.weekendText,
+                        cell.isHoliday && styles.holidayText
+                      ]}>
+                        {cell.day}
+                      </Text>
+                      {cell.hasMemo && <View style={styles.memoIndicatorDot} />}
+                    </View>
+                    
+                    {cell.isHoliday ? (
+                      <Text style={styles.holidayLabel} numberOfLines={1}>{cell.holidayName}</Text>
+                    ) : (
+                      <View style={styles.calIconRow}>
+                        {cell.schedules.map((sch, idx) => {
+                          const icon = zoneIcons[sch.zone] || {};
+                          return (
+                            <FontAwesome5
+                              key={idx}
+                              name={icon.name}
+                              size={10}
+                              color={zoneColors[sch.zone] || '#94A3B8'}
+                              style={styles.calIcon}
+                            />
+                          );
+                        })}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )
+              )}
+            </View>
           </View>
 
-          <View style={styles.calendar}>
-            {calendarData.map(cell =>
-              cell.empty ? (
-                <View key={cell.key} style={styles.calCellEmpty} />
-              ) : (
-                (() => {
-                  return (
-                    <TouchableOpacity
-                      key={cell.key}
-                      onPress={() => {
-                        setModalDate(cell.date);
-                        // Per-employee dateMemos
-                        const currentEmployeeMemos = dateMemos[selectedIndex] || {};
-                        setModalMemo(currentEmployeeMemos[cell.date]?.memo || '');
-                        setModalLeave(currentEmployeeMemos[cell.date]?.isLeave || false);
-                        const origZones = scheduleData.filter(it => it.date === cell.date).map(it => it.zone);
-                        const overrideData = (dateMemos[selectedIndex] || {})[cell.date]?.overrideZones;
-                        setModalOverrideZones(Array.isArray(overrideData) ? overrideData : origZones);
-                      }}
-                      style={[
-                        styles.calCell,
-                        isWeekend(cell.date) && styles.calCellWeekend,
-                        cell.isHoliday && styles.holidayCell,
-                        cell.date === today.format('YYYY-MM-DD') && styles.calCellToday,
-                        (dateMemos[selectedIndex]?.[cell.date]?.isLeave) && styles.leaveCell,
-                      ]}
-                    >
-                      <Text style={styles.calDate}>{cell.day}</Text>
-                      {cell.isHoliday && (
-                        <Text style={styles.holidayText}>{cell.holidayName}</Text>
-                      )}
-                      {!cell.isHoliday && (
-                        <View style={styles.calIconRow}>
-                          {cell.schedules.map((sch, idx) => {
-                            const icon = zoneIcons[sch.zone] || {};
-                            if (icon.lib === 'fa') {
-                              return (
-                                <FontAwesome5
-                                  key={idx}
-                                  name={icon.name}
-                                  size={11}
-                                  color={zoneColors[sch.zone] || '#888'}
-                                  style={styles.calIcon}
-                                />
-                              );
-                            }
-                            return (
-                              <Ionicons
-                                key={idx}
-                                name={icon.name || 'ellipse'}
-                                size={12}
-                                color={zoneColors[sch.zone] || '#888'}
-                                style={styles.calIcon}
-                              />
-                            );
-                          })}
-                        </View>
-                      )}
-                      {cell.hasMemo && !cell.isHoliday && (
-                        <View style={styles.memoDot} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })()
-              )
-            )}
-          </View>
-        </View>
-
-        {/* Weekly schedule for current month */}
-        <View style={styles.weekHeaderRow}>
-          <TouchableOpacity
-            onPress={() => setWeekOffset(w => Math.max(earliestWeekOffset, w - 1))}
-            disabled={weekOffset <= earliestWeekOffset}
-          >
-            <Ionicons
-              name="chevron-back"
-              size={20}
-              color={weekOffset <= earliestWeekOffset ? '#CCC' : '#000'}
-            />
-          </TouchableOpacity>
-          {(() => {
-            const weekStart = baseStart.add(weekOffset * 7, 'day');
-            const weekEnd = weekStart.add(6, 'day');
-            const monthFirst = dayjs(new Date(displayYear, displayMonth, 1));
-            const monthLast = dayjs(new Date(displayYear, displayMonth + 1, 0));
-
-            const displayStart = weekStart.isBefore(monthFirst) ? monthFirst : weekStart;
-            const displayEnd = weekEnd.isAfter(monthLast) ? monthLast : weekEnd;
-
-            return (
-              <Text style={styles.weekRangeText}>
-                {displayStart.format('MM/DD')} - {displayEnd.format('MM/DD')}
-              </Text>
-            );
-          })()}
-          <TouchableOpacity
-            onPress={() => setWeekOffset(w => w + 1)}
-            disabled={
-              (() => {
-                const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
-                const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
-                // 마지막 날 이후로 넘어가면 비활성화
-                return nextWeekStart.isAfter(lastDateInMonth, 'day');
-              })()
-            }
-          >
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={
-                (() => {
-                  const lastDateInMonth = dayjs(new Date(displayYear, displayMonth + 1, 0));
-                  const nextWeekStart = baseStart.add((weekOffset + 1) * 7, 'day');
-                  return nextWeekStart.isAfter(lastDateInMonth, 'day') ? '#CCC' : '#000';
-                })()
-              }
-            />
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.weekGrid}
-          ref={weekScrollRef}
-        >
-          {Array.from({ length: 7 }).map((_, i) => {
-            const d = baseStart.add(weekOffset * 7 + i, 'day');
-            // 해당 월이 아니면 빈 칸
-            if (d.month() !== displayMonth) {
-              return (
-                <View
-                  key={d.format('YYYY-MM-DD') + '_empty'}
-                  style={styles.weekCellPlaceholder}
-                />
-              );
-            }
-
-            const dateStr = d.format('YYYY-MM-DD');
-            const hName = HOLIDAYS[dateStr];
-            let zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
-            const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
-            if (Array.isArray(overrideZones)) {
-              zonesForDay = overrideZones;
-            }
-            const currentEmployeeMemos = dateMemos[selectedIndex] || {};
-            return (
+          {/* 주간 근무 상세 카드 */}
+          <View style={styles.weekCard}>
+            <View style={styles.weekHeaderRow}>
               <TouchableOpacity
-                key={dateStr}
-                onPress={() => {
-                  setModalDate(dateStr);
-                  const currentEmployeeMemos = dateMemos[selectedIndex] || {};
-                  setModalMemo(currentEmployeeMemos[dateStr]?.memo || '');
-                  setModalLeave(currentEmployeeMemos[dateStr]?.isLeave || false);
-                  const origZones = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
-                  const overrideData = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
-                  setModalOverrideZones(Array.isArray(overrideData) ? overrideData : origZones);
-                }}
-                style={[
-                  styles.weekCell,
-                  hName && styles.holidayCell,
-                  dateStr === today.format('YYYY-MM-DD') && styles.weekCellToday,
-                  currentEmployeeMemos[dateStr]?.isLeave && styles.leaveCell,
-                ]}
+                onPress={() => setWeekOffset(w => Math.max(earliestWeekOffset, w - 1))}
+                disabled={weekOffset <= earliestWeekOffset}
+                style={styles.weekPagerBtn}
               >
-                <Text style={styles.weekCellDate}>{d.format('MM/DD (dd)')}</Text>
-                {hName && <Text style={styles.holidayText}>{hName}</Text>}
-                {!hName && zonesForDay.map((z, idx) => (
-                  <View key={idx} style={[styles.badge, { backgroundColor: zoneColors[z] }]}>
-                    <Text style={styles.badgeText}>{z}</Text>
-                  </View>
-                ))}
-                {currentEmployeeMemos[dateStr]?.memo ? (
-                  <Text style={styles.weekCellMemo}>{currentEmployeeMemos[dateStr].memo}</Text>
-                ) : null}
+                <Ionicons name="chevron-back" size={18} color={weekOffset <= earliestWeekOffset ? '#CBD5E1' : COLORS.primary} />
               </TouchableOpacity>
-            );
-          })}
+              
+              {(() => {
+                const weekStart = baseStart.add(weekOffset * 7, 'day');
+                const weekEnd = weekStart.add(6, 'day');
+                const monthFirst = dayjs(new Date(displayYear, displayMonth, 1));
+                const monthLast = dayjs(new Date(displayYear, displayMonth + 1, 0));
+
+                const displayStart = weekStart.isBefore(monthFirst) ? monthFirst : weekStart;
+                const displayEnd = weekEnd.isAfter(monthLast) ? monthLast : weekEnd;
+
+                return (
+                  <Text style={styles.weekRangeText}>
+                    {displayStart.format('MM/DD')} - {displayEnd.format('MM/DD')} 주간 직무
+                  </Text>
+                );
+              })()}
+
+              <TouchableOpacity
+                onPress={() => setWeekOffset(w => w + 1)}
+                disabled={baseStart.add((weekOffset + 1) * 7, 'day').isAfter(dayjs(new Date(displayYear, displayMonth + 1, 0)), 'day')}
+                style={styles.weekPagerBtn}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={
+                    baseStart.add((weekOffset + 1) * 7, 'day').isAfter(dayjs(new Date(displayYear, displayMonth + 1, 0)), 'day')
+                      ? '#CBD5E1'
+                      : COLORS.primary
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.weekGrid}
+              ref={weekScrollRef}
+            >
+              {Array.from({ length: 7 }).map((_, i) => {
+                const d = baseStart.add(weekOffset * 7 + i, 'day');
+                if (d.month() !== displayMonth) {
+                  return <View key={d.format('YYYY-MM-DD') + '_empty'} style={styles.weekCellPlaceholder} />;
+                }
+
+                const dateStr = d.format('YYYY-MM-DD');
+                const hName = HOLIDAYS[dateStr];
+                let zonesForDay = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+                const overrideZones = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
+                if (Array.isArray(overrideZones)) {
+                  zonesForDay = overrideZones;
+                }
+                const currentMemos = dateMemos[selectedIndex] || {};
+                
+                return (
+                  <TouchableOpacity
+                    key={dateStr}
+                    onPress={() => {
+                      setModalDate(dateStr);
+                      setModalMemo(currentMemos[dateStr]?.memo || '');
+                      setModalLeave(currentMemos[dateStr]?.isLeave || false);
+                      const origZones = scheduleData.filter(it => it.date === dateStr).map(it => it.zone);
+                      const overrideData = (dateMemos[selectedIndex] || {})[dateStr]?.overrideZones;
+                      setModalOverrideZones(Array.isArray(overrideData) ? overrideData : origZones);
+                    }}
+                    style={[
+                      styles.weekCell,
+                      hName && styles.weekCellHoliday,
+                      dateStr === today.format('YYYY-MM-DD') && styles.weekCellToday,
+                      currentMemos[dateStr]?.isLeave && styles.weekCellLeave,
+                    ]}
+                  >
+                    <Text style={styles.weekCellDate}>{d.format('MM/DD (dd)')}</Text>
+                    
+                    {hName ? (
+                      <Text style={styles.weekHolidayLabel}>{hName}</Text>
+                    ) : (
+                      <View style={styles.weekBadges}>
+                        {zonesForDay.map((z, idx) => (
+                          <View key={idx} style={[styles.badge, { backgroundColor: zoneColors[z] }]}>
+                            <Text style={styles.badgeText}>{z}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {currentMemos[dateStr]?.memo ? (
+                      <View style={styles.weekMemoBox}>
+                        <Text style={styles.weekCellMemo} numberOfLines={2}>{currentMemos[dateStr].memo}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
         </ScrollView>
-      </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
 
 export default ScheduleScreen;
 
-// =====================================================
-// Styles
-// =====================================================
-const zoneColors = {
-  인공지능배움터: '#FFB74D', // orange
-  VR체험: '#4FC3F7', // light blue
-  로봇배움터: '#81C784', // green
-};
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingBottom: 80,
+    backgroundColor: COLORS.bg,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderColor: '#DDD',
-    backgroundColor: '#FFF',
+    borderColor: COLORS.border,
   },
-  title: {
-    fontSize: 22,
+  headerNavBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    position: 'relative',
+  },
+  tabItemActive: {
+    // Active style
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#64748B',
     fontWeight: '700',
-    color: '#000',
   },
-  refreshButton: {
-    width: 36,
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    borderRadius: 18,
+  tabTextActive: {
+    color: COLORS.accent,
+  },
+  tabLine: {
+    position: 'absolute',
+    bottom: 0,
+    width: '60%',
+    height: 3,
+    backgroundColor: COLORS.accent,
+    borderRadius: 2,
+  },
+  loaderContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  selector: { flexDirection: 'row', marginBottom: 8, borderBottomWidth: 1, borderColor: '#ddd' },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    marginVertical: 8,
-    marginHorizontal: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 2,
-    borderLeftWidth: 4,
+  loaderText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748B',
   },
-  date: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  zone: { fontSize: 14, fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 20, color: '#888' },
-  viewToggle: { flexDirection: 'row', marginBottom: 12, justifyContent: 'center' },
-  iconToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginHorizontal: 4,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#888',
-  },
-  iconToggleActive: {
-    backgroundColor: '#888',
-  },
-  iconText: { fontSize: 13, color: '#888', fontWeight: '600' },
-  iconTextActive: { color: '#fff' },
-  monthLabel: {
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
+  mainScroll: {
+    flex: 1,
   },
   calendarCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    marginHorizontal: -6,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
     elevation: 3,
   },
-  calendar: { flexDirection: 'row', flexWrap: 'wrap' },
-  calCell: {
-    flexBasis: '14.28%',
-    maxWidth: '14.28%',
-    padding: 4,
-    minHeight: 60,
-    justifyContent: 'flex-start',
-    borderWidth: 0.5,
-    borderColor: '#ECECEC',
+  weekHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+    marginBottom: 8,
   },
-  calCellEmpty: {
-    flexBasis: '14.28%',
-    maxWidth: '14.28%',
-    padding: 4,
-    minHeight: 60,
-    borderWidth: 0.5,
-    borderColor: '#ECECEC',
-  },
-  calCellWeekend: { backgroundColor: '#F1F7FF' },
-  calDate: { fontSize: 12, fontWeight: '700' },
-  calDetail: { fontSize: 10 },
-  calBadge: {
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    marginTop: 2,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-  },
-  calBadgeText: {
-    fontSize: 9,
-    color: '#fff',
-    fontWeight: '600',
+  weekHeaderCell: {
+    flex: 1,
     textAlign: 'center',
+    fontWeight: '800',
+    color: COLORS.primaryLight,
+    fontSize: 12,
   },
-  calDotRow: {
+  weekendHeaderCell: {
+    color: '#94A3B8',
+  },
+  calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 2,
   },
-  memoDot: {
+  calCell: {
+    width: '14.28%',
+    height: 54,
+    padding: 4,
+    justifyContent: 'space-between',
+    borderWidth: 0.5,
+    borderColor: '#F1F5F9',
+  },
+  calCellEmpty: {
+    width: '14.28%',
+    height: 54,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 0.5,
+    borderColor: '#F1F5F9',
+  },
+  calCellWeekend: {
+    backgroundColor: '#F8FAFC',
+  },
+  calCellToday: {
+    borderColor: COLORS.accent,
+    borderWidth: 1.5,
+    borderRadius: 4,
+  },
+  calCellLeave: {
+    backgroundColor: '#FEF3C7', // Amber 100
+  },
+  calCellHoliday: {
+    backgroundColor: '#FEE2E2', // Red 100
+  },
+  cellHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  calDate: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  weekendText: {
+    color: '#64748B',
+  },
+  holidayText: {
+    color: COLORS.danger,
+  },
+  memoIndicatorDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#FF7043',
-    alignSelf: 'center',
-    marginTop: 2,
+    backgroundColor: COLORS.accent,
   },
-  calDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    margin: 1,
-  },
-  weekHeader: { flexDirection: 'row' },
-  weekHeaderCell: {
-    flexBasis: '14.28%',
-    maxWidth: '14.28%',
+  holidayLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: COLORS.danger,
     textAlign: 'center',
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  navItemActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#007aff',
-  },
-  navText: { fontSize: 15, color: '#555', fontWeight: '600' },
-  navTextActive: { color: '#007aff' },
-
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 8,
-    width: '80%',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
-    padding: 8,
-    marginBottom: 12,
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    marginTop: 4,
-    flexWrap: 'wrap',
-  },
-  badge: {
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginBottom: 4,
-  },
-  badgeText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  weekHeaderRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#ddd',
-  },
-  weekNavButton: { padding: 6 },
-  weekRangeText: { fontSize: 16, fontWeight: '600' },
-  weekGrid: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 80, marginTop: 8, flexWrap: 'nowrap' },
-  // 주간 셀 스타일 변경
-  weekCell: {
-    minWidth: 120,
-    marginRight: 10,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
-    elevation: 2,
-    minHeight: 120,
-    flexDirection: 'column',
-    justifyContent: 'flex-start',
-  },
-  weekCellPlaceholder: {
-    width: 0,
-    minWidth: 0,
-    marginRight: 0,
-  },
-
-  weekCellMemo: {
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: 'center',
-    color: '#666',
-    flexWrap: 'wrap',
-  },
-  weekCellToday: { borderColor: '#007aff', borderWidth: 2 },
-  calCellToday: {
-    borderColor: '#007AFF',
-    borderWidth: 2,
-  },
-  weekCellDate: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
-  verticalScroll: {
-    flex: 1,
-  },
-  leaveBadge: {
-    marginTop: 4,
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#D32F2F',
-    textAlign: 'center'
-  },
-  leaveCell: {
-    backgroundColor: '#FFF3E0', // light peach for leave days
-  },
-  holidayCell: {
-    backgroundColor: '#FFF0F0', // light red tint for holiday
-  },
-  holidayText: {
-    color: '#D32F2F',
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 10,
-    backgroundColor: '#007aff',
-    borderRadius: 4,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   calIconRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 2,
+    gap: 2,
   },
   calIcon: {
-    marginHorizontal: 1,
+    margin: 1,
+  },
+  weekCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  weekHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 12,
+    marginBottom: 8,
+  },
+  weekPagerBtn: {
+    padding: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+  },
+  weekRangeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  weekGrid: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  weekCell: {
+    width: 110,
+    height: 110,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weekCellToday: {
+    borderColor: COLORS.accent,
+    borderWidth: 1.5,
+  },
+  weekCellLeave: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  weekCellHoliday: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#F87171',
+  },
+  weekCellPlaceholder: {
+    width: 0,
+  },
+  weekCellDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  weekHolidayLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.danger,
+  },
+  weekBadges: {
+    gap: 3,
+    width: '100%',
+  },
+  badge: {
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  weekMemoBox: {
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    width: '100%',
+    paddingTop: 4,
+    alignItems: 'center',
+  },
+  weekCellMemo: {
+    fontSize: 9,
+    color: COLORS.primaryLight,
+    textAlign: 'center',
+  },
+  modalBg: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '85%',
+    maxWidth: 360,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 12,
+    marginBottom: 16,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  modalBody: {
+    gap: 12,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryLight,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: COLORS.primary,
+    backgroundColor: '#F8FAFC',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  switchLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  switchSubLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalZones: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  zonePill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#fff',
+  },
+  zonePillActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentLight,
+  },
+  zonePillText: {
+    fontSize: 12,
+    color: COLORS.primaryLight,
+    fontWeight: '600',
+  },
+  zonePillTextActive: {
+    color: COLORS.accent,
+    fontWeight: '700',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  btn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnCancel: {
+    backgroundColor: '#F1F5F9',
+  },
+  btnCancelText: {
+    color: COLORS.primaryLight,
+    fontWeight: '700',
+  },
+  btnSave: {
+    backgroundColor: COLORS.accent,
+  },
+  btnSaveText: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });

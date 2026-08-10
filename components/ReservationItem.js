@@ -2,9 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 /**
- * ReservationItem — 예약 슬롯 행 컴포넌트
- *
- * 표기 형식:  [시간]  [상태]  [신청인원/정원명]
+ * ReservationItem — 예약 슬롯 행 컴포넌트 (디자인 개선 버전)
  *
  * Props
  *  - time      {string}   : 시작 시각 (예: '11:10')
@@ -12,65 +10,103 @@ import { View, Text, StyleSheet } from 'react-native';
  *  - remaining {number?}  : 신청 인원(서버 available 값을 전달)
  *  - total     {number?}  : 정원 (없으면 신청 인원만 표시)
  *  - closed    {boolean}  : 마감 슬롯 여부 (색상 약화 처리)
- *
- * Note
- *  - total이 null/undefined면 `remaining명` 형식으로만 출력합니다.
- *  - 닫힌 슬롯(closed=true)은 텍스트 컬러를 회색으로 낮춰 가독성 보조합니다.
  */
 const ReservationItem = ({ time, status, remaining, total, closed = false }) => {
+  const isAvailable = status === '예약가능';
+
   return (
-    <View style={styles.item}>
-      {/* 시간 */}
-      <Text style={[styles.time, closed && styles.textClosed]}>{time}</Text>
+    <View style={[styles.item, closed && styles.itemClosed]}>
+      {/* 좌측: 시간 */}
+      <View style={styles.timeContainer}>
+        <Text style={[styles.timeText, closed && styles.textClosed]}>{time}</Text>
+      </View>
 
-      {/* 상태 (예약가능/정원마감/시간마감) */}
-      <Text style={[styles.status, closed && styles.textClosed]}>{status}</Text>
+      {/* 중앙: 상태 배지 */}
+      <View style={styles.statusContainer}>
+        <View style={[
+          styles.statusBadge, 
+          isAvailable ? styles.badgeAvailable : styles.badgeClosed
+        ]}>
+          <Text style={[
+            styles.statusText, 
+            isAvailable ? styles.textAvailable : styles.textClosedBadge
+          ]}>
+            {status}
+          </Text>
+        </View>
+      </View>
 
-      {/* 신청 인원/정원: total이 없으면 신청 인원만 표시 */}
-      {typeof remaining === 'number' && (
-        <Text style={[styles.remaining, closed && styles.textClosed]}>
-          {total != null ? `${remaining}/${total}명` : `${remaining}명`}
-        </Text>
-      )}
+      {/* 우측: 인원 정보 */}
+      <View style={styles.remainingContainer}>
+        {typeof remaining === 'number' && (
+          <Text style={[styles.remainingText, closed && styles.textClosed]}>
+            {total != null ? `${remaining}/${total}명` : `${remaining}명`}
+          </Text>
+        )}
+      </View>
     </View>
   );
 };
 
-// ─────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  // 행 레이아웃: 좌-중-우 3열
   item: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderColor: '#eee',
+    borderColor: '#F1F5F9',
   },
-  // 좌측: 시간
-  time: {
-    fontSize: 16,
+  itemClosed: {
+    opacity: 0.7,
+  },
+  timeContainer: {
     flex: 1,
-    textAlign: 'left',
+    alignItems: 'flex-start',
   },
-  // 가운데: 상태 배지 느낌(파란색 강조)
-  status: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#007aff',
+  timeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  statusContainer: {
+    flex: 1.2,
+    alignItems: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeAvailable: {
+    backgroundColor: '#D1FAE5', // Light Green
+  },
+  badgeClosed: {
+    backgroundColor: '#F1F5F9', // Light Gray
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  textAvailable: {
+    color: '#059669', // Emerald Green
+  },
+  textClosedBadge: {
+    color: '#64748B', // Slate Gray
+  },
+  remainingContainer: {
     flex: 1,
-    textAlign: 'center',
+    alignItems: 'flex-end',
   },
-  // 우측: 신청 인원/정원
-  remaining: {
-    fontSize: 16,
-    color: '#555',
-    flex: 1,
-    textAlign: 'right',
+  remainingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
   },
-  // 마감 슬롯 컬러 약화(공통)
   textClosed: {
-    color: '#999',
+    color: '#94A3B8',
+    textDecorationLine: 'none',
   },
 });
 
