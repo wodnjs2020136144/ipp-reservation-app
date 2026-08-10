@@ -78,6 +78,7 @@ npx expo start
 ```
 - 예약/AI 챗봇 기능을 테스트하려면 `ipp-reservation-server`가 실행 중이어야 합니다(기본값은 배포된 `https://ipp-reservation-server.fly.dev`).
 - 네이티브 코드 변경이 필요한 경우 `npm run ios` / `npm run android`로 prebuild된 네이티브 프로젝트를 직접 빌드합니다.
+- 최신 Xcode(26.x)에서 iOS 네이티브 빌드가 `fmt`(RCT-Folly 번들) 관련 컴파일 에러로 실패하는 경우, 아래 "알려진 이슈"를 참고하세요. 그런 환경에서는 `npx expo start --go`로 Expo Go 시뮬레이터 확인이 대안입니다.
 
 ### 빌드/배포 (EAS)
 `eas.json`에 `development`/`preview`/`production` 3개 프로필이 정의되어 있습니다.
@@ -123,3 +124,8 @@ eas build --profile preview
 | `START_DATE`/`START_MONTH` 매직값 | 로테이션 계산 기준일임을 설명하는 주석 추가 |
 
 이로써 코드 리뷰에서 발견된 항목이 모두 해결되었습니다.
+
+### 남은 이슈 (환경 이슈)
+| 심각도 | 항목 | 위치 |
+|---|---|---|
+| 중간 | 최신 Xcode(26.6 확인됨)에서 iOS 네이티브 빌드가 `fmt`(RCT-Folly 번들)의 `FMT_STRING()` 매크로가 생성하는 consteval 생성자에서 "call to consteval function ... is not a constant expression" 에러로 실패함. 앱 코드가 아닌 fmt 라이브러리 자체 코드에서 발생하며, `FMT_CONSTEVAL`/`FMT_USE_CONSTEVAL` 매크로 오버라이드로도 해결 안 됨(원인과 시도한 방법은 `ios/Podfile` 주석 참고). Expo/React Native 업그레이드로 fmt 버전이 올라가면 해결될 가능성이 높음. 그 전까지는 `npx expo start --go`(Expo Go)로 시뮬레이터 확인 가능 | `ios/Podfile` |
