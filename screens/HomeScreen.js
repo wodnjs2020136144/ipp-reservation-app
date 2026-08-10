@@ -20,7 +20,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Platform,
   StatusBar,
   TouchableOpacity,
@@ -33,6 +32,7 @@ import ReservationItem from '../components/ReservationItem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../constants/theme';
+import LoadingView from '../components/LoadingView';
 
 // =====================================================
 // # Constants & Config
@@ -254,10 +254,7 @@ const HomeScreen = () => {
 
       {/* 로딩 인디케이터 또는 컨텐츠 */}
       {loading ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.loaderText}>최신 예약 현황 수집 중...</Text>
-        </View>
+        <LoadingView text="최신 예약 현황 수집 중..." bold />
       ) : (
         <ScrollView
           refreshControl={
@@ -433,16 +430,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     paddingVertical: 20,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loaderText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '600',
   },
 });

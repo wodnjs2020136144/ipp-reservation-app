@@ -23,8 +23,7 @@ import {
   ScrollView,
   Switch,
   Platform,
-  StatusBar,
-  ActivityIndicator
+  StatusBar
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -33,6 +32,7 @@ import {
   subscribeScheduleConfig
 } from '../services/scheduleService';
 import { COLORS } from '../constants/theme';
+import LoadingView from '../components/LoadingView';
 
 const isWeekend = dateStr => {
   const d = new Date(dateStr);
@@ -556,10 +556,7 @@ const ScheduleScreen = () => {
       </View>
 
       {loading ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.loaderText}>근무 스케줄 동기화 중...</Text>
-        </View>
+        <LoadingView text="근무 스케줄 동기화 중..." />
       ) : (
         <ScrollView style={styles.mainScroll} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           {/* 달력 카드 */}
@@ -802,16 +799,6 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: COLORS.accent,
     borderRadius: 2,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loaderText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
   },
   mainScroll: {
     flex: 1,

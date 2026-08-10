@@ -15,7 +15,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   Switch,
   TextInput,
   Alert,
@@ -35,6 +34,7 @@ import { initialKits } from '../services/dummyData';
 import uuid from 'react-native-uuid';
 import dayjs from 'dayjs';
 import { COLORS as THEME_COLORS } from '../constants/theme';
+import LoadingView from '../components/LoadingView';
 
 // 디자인 시스템 컬러 토큰 (공용 팔레트 기반, primaryLight만 이 화면 전용으로 더 진하게 오버라이드)
 const COLORS = { ...THEME_COLORS, primaryLight: '#334155' }; // Slate 700 (서브 텍스트)
@@ -354,10 +354,7 @@ const KitsScreen = () => {
       </View>
 
       {loading ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.loaderText}>데이터를 가져오는 중입니다...</Text>
-        </View>
+        <LoadingView text="데이터를 가져오는 중입니다..." />
       ) : (
         <View style={styles.content}>
           {/* 교구 신규 추가 */}
@@ -454,16 +451,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginTop: 4,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loaderText: {
-    marginTop: 12,
-    color: '#64748B',
-    fontSize: 14,
   },
   content: {
     flex: 1,
