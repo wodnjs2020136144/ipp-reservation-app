@@ -29,8 +29,6 @@ services/
   kitService.js              Firestore kits/logs CRUD
   scheduleService.js         Firestore 스케줄 설정 CRUD
   dummyData.js                초기 시드 데이터
-context/
-  KitContext.js               (현재 비어있음, 미사용)
 ```
 
 ## 시작하기
