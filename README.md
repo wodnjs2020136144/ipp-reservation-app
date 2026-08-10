@@ -96,15 +96,17 @@ eas build --profile preview
 | `ScheduleScreen` AsyncStorage/Firestore 동기화 경합 조건 | onSnapshot을 원격 데이터의 단일 소스로 삼아 AsyncStorage 쓰기를 한 곳으로 통합. 마운트 시 로컬 캐시를 먼저 읽어 즉시 화면을 채우고 이후 Firestore 값으로 갱신 |
 | `dayjs`/`@expo/vector-icons` 미선언, `axios` 미사용 의존성 | `package.json`에 dayjs/@expo/vector-icons 명시, axios 제거 |
 
+### 해결 완료 (계속)
+| 항목 | 조치 |
+|---|---|
+| `HOLIDAYS`가 2025년 하반기까지만 존재 | 2026년 법정공휴일/대체공휴일 전체 추가, 매년 갱신 필요하다는 TODO 주석 추가 |
+| `context/KitContext.js` 빈 파일, `zones`/`isHoliday` 죽은 코드 | 모두 삭제 |
+| `firebase.js` 디버그 `console.log` | 제거 |
+
 ### 남은 이슈
 | 심각도 | 항목 | 위치 |
 |---|---|---|
-| 중간 | `HOLIDAYS`가 2025년 하반기까지만 하드코딩되어 있어 현재(2026년) 공휴일이 반영되지 않음. `START_DATE` 등 로테이션 계산 기준값도 매직값으로 존재 | `screens/ScheduleScreen.js` |
 | 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
 | 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
-| 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
-| 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
-| 낮음 | `context/KitContext.js`가 빈 파일로 남아 있고 어디서도 사용되지 않음 | `context/KitContext.js` |
-| 낮음 | `axios`가 의존성에 선언되어 있으나 실제로는 전부 `fetch`로 구현되어 있어 미사용 상태 | `package.json` |
-| 낮음 | `firebase.js`에 프로덕션에서도 남아있는 디버그용 `console.log` 존재 | `firebase.js` |
 | 낮음 | `COLORS` 팔레트, 로딩 뷰, 모달 wrapper 등 유사한 스타일 코드가 화면마다 중복 작성됨 | `screens/HomeScreen.js`, `screens/KitsScreen.js`, `screens/ScheduleScreen.js` |
+| 낮음 | `ScheduleScreen`의 `START_DATE` 등 로테이션 계산 기준값이 매직값으로 존재 | `screens/ScheduleScreen.js` |
