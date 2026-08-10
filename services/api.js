@@ -19,8 +19,11 @@
  *
  * 에러 처리
  * - API 호출 전체가 실패할 경우, 앱이 중단되지 않도록 기본 빈 객체를 반환합니다.
+ *
+ * BASE_URL은 EXPO_PUBLIC_API_BASE_URL 환경변수로 오버라이드 가능(.env.example 참고).
+ * 이 값이 예약 서버 주소의 단일 소스이며, 다른 화면(AiChatScreen 등)은 이 모듈에서 import해서 사용합니다.
  */
-const BASE_URL = 'https://ipp-reservation-server.fly.dev';
+export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://ipp-reservation-server.fly.dev';
 
 /**
  * ✨ [변경] 모든 그룹의 예약 정보를 단일 요청으로 가져옵니다.

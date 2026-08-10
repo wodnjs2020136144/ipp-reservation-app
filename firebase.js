@@ -11,7 +11,8 @@
  *  - 이 파일은 클라이언트 번들에 포함됩니다. Firebase API Key는 공개 식별자이며
  *    서버 비밀이 아닙니다(보안 비밀을 여기에 두면 안 됨).
  *  - 관리자(서버) SDK, 서비스 계정 키는 절대 클라이언트에 포함하지 마세요.
- *  - 배포 환경별 구성은 EXPO_PUBLIC_* 환경변수를 고려하세요.
+ *  - 배포 환경(dev/staging/prod)을 분리할 수 있도록 EXPO_PUBLIC_* 환경변수로
+ *    오버라이드 가능. .env.example 참고. 환경변수가 없으면 기존 기본값 사용.
  */
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -31,15 +32,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─────────────────────────────────────────────────────────────
 // Firebase 프로젝트 설정
 //  - 공개 가능한 클라이언트용 구성
-//  - 환경 분리가 필요하면 EXPO_PUBLIC_* 로 옮기세요
+//  - EXPO_PUBLIC_* 환경변수(.env)로 오버라이드 가능, 없으면 기본값 사용
 // ─────────────────────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: 'AIzaSyCEoktV7zrnneZRUlPe181lu_sYVpcBMDM',
-  authDomain: 'ipp-reservation-app.firebaseapp.com',
-  projectId: 'ipp-reservation-app',
-  storageBucket: 'ipp-reservation-app.appspot.com',
-  messagingSenderId: '752617619492',
-  appId: '1:752617619492:web:e2476b7311b70f2e5bcb1',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyCEoktV7zrnneZRUlPe181lu_sYVpcBMDM',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'ipp-reservation-app.firebaseapp.com',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'ipp-reservation-app',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'ipp-reservation-app.appspot.com',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '752617619492',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:752617619492:web:e2476b7311b70f2e5bcb1',
 };
 
 // Firebase App: 이미 초기화돼 있으면 재사용

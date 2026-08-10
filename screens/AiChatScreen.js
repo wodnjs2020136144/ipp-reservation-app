@@ -24,8 +24,7 @@ import {
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const BASE_URL = 'https://ipp-reservation-server.fly.dev'; // 또는 로컬 테스트 시 http://localhost:4000
+import { BASE_URL } from '../services/api';
 
 const SUGGESTIONS = [
   "오늘 드론 VR 예약 남았어?",
@@ -177,7 +176,7 @@ export default function AiChatScreen() {
             value={input}
             onChangeText={setInput}
             onSubmitEditing={() => handleSend()}
-            disabled={loading}
+            editable={!loading}
           />
           <TouchableOpacity 
             style={[styles.sendButton, !input.trim() && styles.disabledSendButton]}

@@ -45,14 +45,23 @@ context/
 npm install
 ```
 
+### 환경변수
+`.env.example`을 복사해 `.env`를 만듭니다. 모든 값이 선택 사항이며, 비워두면 `firebase.js`/`services/api.js`에 내장된 기본값(현재 운영 중인 프로젝트)을 사용합니다.
+```bash
+cp .env.example .env
+```
+
+| 변수명 | 설명 |
+|---|---|
+| `EXPO_PUBLIC_API_BASE_URL` | 예약 서버 REST API 주소 |
+| `EXPO_PUBLIC_FIREBASE_*` | 다른 Firebase 프로젝트(개발/스테이징 등)로 연결할 때만 설정 |
+
 ### Firebase 설정
-`firebase.js`에 Firebase 프로젝트 설정값이 포함되어 있습니다. 다른 Firebase 프로젝트로 연결하려면 이 파일의 `firebaseConfig` 값을 교체하세요. Firestore에는 다음 컬렉션/문서가 사용됩니다.
+Firestore에는 다음 컬렉션/문서가 사용되며, 접근 권한은 `firestore.rules`에 정의되어 있습니다(익명 인증 로그인 사용자만 read/write 가능, `firebase deploy --only firestore:rules`로 배포).
 
 - `kits` 컬렉션 — 교구 목록
 - `logs/kitLogs` 문서 — 교구 변경 이력
 - `settings/scheduleConfig` 문서 — 근무자/스케줄 설정
-
-> Firestore 보안 규칙은 리포지토리에 포함되어 있지 않습니다. Firebase 콘솔에서 규칙이 적절히 설정되어 있는지 별도로 확인이 필요합니다.
 
 ### 로컬 실행
 ```bash
@@ -78,16 +87,23 @@ eas build --profile preview
 
 ## 알려진 이슈 및 개선 필요 사항
 
-코드 리뷰를 통해 확인된 항목입니다. 아직 수정되지 않은 상태이며, 우선순위 판단 및 추후 개별 작업의 참고용으로 남겨둡니다.
+코드 리뷰를 통해 확인된 항목입니다. 보안 우선 개선 로드맵에 따라 순차적으로 해결 중입니다.
 
+### 해결 완료
+| 항목 | 조치 |
+|---|---|
+| Firestore 보안 규칙 파일 부재 | `firestore.rules` 작성 및 `firebase deploy --only firestore:rules`로 배포 완료. `kits`/`logs`/`settings` 경로만 익명 인증 로그인 사용자에게 열고 나머지는 기본 차단 |
+| `BASE_URL` 중복 하드코딩 | `services/api.js`에서 `export const BASE_URL`로 단일화, `AiChatScreen.js`는 이를 import해서 사용. `EXPO_PUBLIC_API_BASE_URL` 환경변수로 오버라이드 가능 |
+| Firebase 설정 미환경변수화 | `EXPO_PUBLIC_FIREBASE_*` 환경변수로 오버라이드 가능하게 변경(값이 없으면 기존 기본값 사용, 기존 동작 유지) |
+
+### 남은 이슈
 | 심각도 | 항목 | 위치 |
 |---|---|---|
-| 높음 | Firestore 보안 규칙 파일이 리포지토리에 없어 실제 접근 제어 상태를 코드로 검증할 수 없음. 익명 인증만으로 `kits`/`logs`/`settings` 컬렉션 전체에 read/write가 열려 있을 가능성 | - (Firebase 콘솔 확인 필요) |
 | 높음 | `ScheduleScreen`에서 AsyncStorage(로컬 캐시)와 Firestore(원격) 동기화 순서가 보장되지 않아 값이 순간적으로 되돌아가는 경합 조건 발생 가능 | `screens/ScheduleScreen.js` (초기 로드 111-143줄, 실시간 구독 146-160줄) |
 | 높음 | `dayjs`가 `package.json`에 선언되지 않고 전이 의존성에 의존 중 — 클린 설치 시 빌드가 깨질 위험 | `package.json`, 사용처 `screens/KitsScreen.js`, `screens/ScheduleScreen.js` |
-| 중간 | `BASE_URL`이 `services/api.js`와 `screens/AiChatScreen.js`에 중복 하드코딩됨 | `services/api.js:23`, `screens/AiChatScreen.js:28` |
-| 중간 | Firebase 설정값이 환경변수화되지 않고 소스에 직접 기재됨 (`EXPO_PUBLIC_*` 전환 TODO 상태) | `firebase.js` |
 | 중간 | `HOLIDAYS`가 2025년 하반기까지만 하드코딩되어 있어 현재(2026년) 공휴일이 반영되지 않음. `START_DATE` 등 로테이션 계산 기준값도 매직값으로 존재 | `screens/ScheduleScreen.js` |
+| 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
+| 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
 | 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
 | 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
 | 낮음 | `context/KitContext.js`가 빈 파일로 남아 있고 어디서도 사용되지 않음 | `context/KitContext.js` |
