@@ -24,6 +24,9 @@ screens/
   ScheduleScreen.js         근무자 구역 자동 로테이션 캘린더
 components/
   ReservationItem.js        예약 슬롯 표시 공용 컴포넌트
+  LoadingView.js             전체 화면 로딩 스피너 공용 컴포넌트
+constants/
+  theme.js                   화면 공용 색상 팔레트
 services/
   api.js                    예약 서버 REST 클라이언트
   kitService.js              Firestore kits/logs CRUD
@@ -103,10 +106,12 @@ eas build --profile preview
 | `context/KitContext.js` 빈 파일, `zones`/`isHoliday` 죽은 코드 | 모두 삭제 |
 | `firebase.js` 디버그 `console.log` | 제거 |
 
-### 남은 이슈
-| 심각도 | 항목 | 위치 |
-|---|---|---|
-| 중간 | 예약/챗봇 API 호출(`fetch`)에 타임아웃 설정이 없어 서버 응답 지연 시 로딩이 무기한 유지될 수 있음 | `services/api.js`, `screens/AiChatScreen.js` |
-| 중간 | 화면별로 에러 처리 방식이 통일되어 있지 않음(일부는 조용히 무시, 일부는 에러 말풍선 표시) | `screens/HomeScreen.js`, `screens/AiChatScreen.js` |
-| 낮음 | `COLORS` 팔레트, 로딩 뷰, 모달 wrapper 등 유사한 스타일 코드가 화면마다 중복 작성됨 | `screens/HomeScreen.js`, `screens/KitsScreen.js`, `screens/ScheduleScreen.js` |
-| 낮음 | `ScheduleScreen`의 `START_DATE` 등 로테이션 계산 기준값이 매직값으로 존재 | `screens/ScheduleScreen.js` |
+### 해결 완료 (계속)
+| 항목 | 조치 |
+|---|---|
+| fetch 타임아웃 부재 | `services/api.js`에 `fetchWithTimeout`(AbortController 기반) 추가, 예약 조회 15초/AI 챗봇 30초 |
+| 예약 화면에서 "데이터 없음"과 "서버 오류"를 구분 못함 | `fetchAllReservations`가 `fetchError` 플래그를 반환, `HomeScreen`에 서버 연결 실패 안내 배너 추가 |
+| `COLORS`/로딩 뷰/모달 wrapper 중복 | `constants/theme.js`(팔레트), `components/LoadingView.js`(로딩 뷰), `ScheduleScreen`의 `ScheduleModal`(모달 wrapper)로 통합. 통합 과정에서 HomeScreen이 참조만 하고 정의는 없던 `COLORS.accentLight`(예약하기 버튼 배경, 값이 `undefined`였음) 버그도 함께 수정 |
+| `START_DATE`/`START_MONTH` 매직값 | 로테이션 계산 기준일임을 설명하는 주석 추가 |
+
+이로써 코드 리뷰에서 발견된 항목이 모두 해결되었습니다.
