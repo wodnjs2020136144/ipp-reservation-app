@@ -93,6 +93,35 @@ const START_DATE = '2025-07-01';
 // 위와 동일한 기준의 월 단위 값(주말 구역 로테이션 계산에 사용, getWeekendRoleMapping 등)
 const START_MONTH = '2025-07';
 
+// 두 모달(일정 수정 / 직원 이름 수정)이 거의 동일한 wrapper 구조
+// (배경, 카드, 헤더 + 닫기 버튼, 취소/저장 버튼 행)를 중복 작성하고 있던 것을
+// 공용 로컬 컴포넌트로 추출. 본문(children)만 각 모달이 다르게 채운다.
+const ScheduleModal = ({ visible, title, onClose, onSave, children }) => (
+  <Modal visible={visible} transparent animationType="fade">
+    <View style={styles.modalBg}>
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalHeaderTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={24} color="#64748B" />
+          </TouchableOpacity>
+        </View>
+
+        {children}
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={onClose}>
+            <Text style={styles.btnCancelText}>취소</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnSave]} onPress={onSave}>
+            <Text style={styles.btnSaveText}>저장하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </Modal>
+);
+
 const ScheduleScreen = () => {
   const [employees, setEmployees] = useState(['', '', '']);
   const [dateMemos, setDateMemos] = useState(() => Array.from({ length: 3 }, () => ({})));
@@ -404,136 +433,102 @@ const ScheduleScreen = () => {
       </View>
 
       {/* 연차/메모 변경 모달 */}
-      <Modal visible={modalDate !== null} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>{modalDate} 일정 수정</Text>
-              <TouchableOpacity onPress={() => setModalDate(null)}>
-                <Ionicons name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
+      <ScheduleModal
+        visible={modalDate !== null}
+        title={`${modalDate} 일정 수정`}
+        onClose={() => setModalDate(null)}
+        onSave={async () => {
+          const updatedAll = [...dateMemos];
+          const empMemos = { ...(updatedAll[selectedIndex] || {}) };
+          empMemos[modalDate] = { memo: modalMemo, isLeave: modalLeave, overrideZones: modalOverrideZones };
+          updatedAll[selectedIndex] = empMemos;
+
+          const sanitized = updatedAll.map(v => v || {});
+          setDateMemos(sanitized);
+
+          await AsyncStorage.setItem('dateMemos', JSON.stringify(sanitized));
+          await saveScheduleConfig(employees, sanitized);
+          setModalDate(null);
+        }}
+      >
+        <View style={styles.modalBody}>
+          {/* 메모 입력 */}
+          <Text style={styles.modalLabel}>일정 메모</Text>
+          <TextInput
+            placeholder="오늘의 특이사항 또는 메모 입력"
+            placeholderTextColor="#94A3B8"
+            value={modalMemo}
+            onChangeText={setModalMemo}
+            style={styles.input}
+          />
+
+          {/* 연차(월차) 관리 */}
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.switchLabel}>월차(연차) 신청</Text>
+              <Text style={styles.switchSubLabel}>사용한 월차 누적: {leaveCounts[selectedIndex]}일</Text>
             </View>
-
-            <View style={styles.modalBody}>
-              {/* 메모 입력 */}
-              <Text style={styles.modalLabel}>일정 메모</Text>
-              <TextInput
-                placeholder="오늘의 특이사항 또는 메모 입력"
-                placeholderTextColor="#94A3B8"
-                value={modalMemo}
-                onChangeText={setModalMemo}
-                style={styles.input}
-              />
-
-              {/* 연차(월차) 관리 */}
-              <View style={styles.switchRow}>
-                <View>
-                  <Text style={styles.switchLabel}>월차(연차) 신청</Text>
-                  <Text style={styles.switchSubLabel}>사용한 월차 누적: {leaveCounts[selectedIndex]}일</Text>
-                </View>
-                <Switch
-                  value={modalLeave}
-                  onValueChange={setModalLeave}
-                  trackColor={{ false: '#CBD5E1', true: COLORS.accent }}
-                />
-              </View>
-
-              {/* 직무 선택 */}
-              <Text style={styles.modalLabel}>담당 직무 편집 (커스텀)</Text>
-              {(() => {
-                if (!modalDate) return null;
-                const weekend = isWeekend(modalDate);
-                const candidateZones = weekend ? WEEKEND_TASKS : TASKS;
-
-                const toggleZone = (z) => {
-                  setModalOverrideZones(prev => 
-                    prev.includes(z) ? prev.filter(v => v !== z) : [...prev, z]
-                  );
-                };
-
-                return (
-                  <View style={styles.modalZones}>
-                    {candidateZones.map(z => {
-                      const active = modalOverrideZones.includes(z);
-                      return (
-                        <TouchableOpacity
-                          key={z}
-                          onPress={() => toggleZone(z)}
-                          style={[
-                            styles.zonePill,
-                            active && styles.zonePillActive
-                          ]}
-                        >
-                          <Text style={[styles.zonePillText, active && styles.zonePillTextActive]}>{z}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnCancel]}
-                onPress={() => setModalDate(null)}
-              >
-                <Text style={styles.btnCancelText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSave]}
-                onPress={async () => {
-                  const updatedAll = [...dateMemos];
-                  const empMemos = { ...(updatedAll[selectedIndex] || {}) };
-                  empMemos[modalDate] = { memo: modalMemo, isLeave: modalLeave, overrideZones: modalOverrideZones };
-                  updatedAll[selectedIndex] = empMemos;
-
-                  const sanitized = updatedAll.map(v => v || {});
-                  setDateMemos(sanitized);
-
-                  await AsyncStorage.setItem('dateMemos', JSON.stringify(sanitized));
-                  await saveScheduleConfig(employees, sanitized);
-                  setModalDate(null);
-                }}
-              >
-                <Text style={styles.btnSaveText}>저장하기</Text>
-              </TouchableOpacity>
-            </View>
+            <Switch
+              value={modalLeave}
+              onValueChange={setModalLeave}
+              trackColor={{ false: '#CBD5E1', true: COLORS.accent }}
+            />
           </View>
+
+          {/* 직무 선택 */}
+          <Text style={styles.modalLabel}>담당 직무 편집 (커스텀)</Text>
+          {(() => {
+            if (!modalDate) return null;
+            const weekend = isWeekend(modalDate);
+            const candidateZones = weekend ? WEEKEND_TASKS : TASKS;
+
+            const toggleZone = (z) => {
+              setModalOverrideZones(prev =>
+                prev.includes(z) ? prev.filter(v => v !== z) : [...prev, z]
+              );
+            };
+
+            return (
+              <View style={styles.modalZones}>
+                {candidateZones.map(z => {
+                  const active = modalOverrideZones.includes(z);
+                  return (
+                    <TouchableOpacity
+                      key={z}
+                      onPress={() => toggleZone(z)}
+                      style={[
+                        styles.zonePill,
+                        active && styles.zonePillActive
+                      ]}
+                    >
+                      <Text style={[styles.zonePillText, active && styles.zonePillTextActive]}>{z}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
-      </Modal>
+      </ScheduleModal>
 
       {/* 직원 이름 수정 모달 */}
-      <Modal visible={editNameModalVisible} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeaderTitle}>직원 이름 수정</Text>
-              <TouchableOpacity onPress={() => setEditNameModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>{`직원 ${selectedIndex + 1}의 새 이름`}</Text>
-              <TextInput
-                placeholder="이름 입력"
-                placeholderTextColor="#94A3B8"
-                value={inputName}
-                onChangeText={setInputName}
-                style={styles.input}
-              />
-            </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={() => setEditNameModalVisible(false)}>
-                <Text style={styles.btnCancelText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnSave]} onPress={saveName}>
-                <Text style={styles.btnSaveText}>저장하기</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      <ScheduleModal
+        visible={editNameModalVisible}
+        title="직원 이름 수정"
+        onClose={() => setEditNameModalVisible(false)}
+        onSave={saveName}
+      >
+        <View style={styles.modalBody}>
+          <Text style={styles.modalLabel}>{`직원 ${selectedIndex + 1}의 새 이름`}</Text>
+          <TextInput
+            placeholder="이름 입력"
+            placeholderTextColor="#94A3B8"
+            value={inputName}
+            onChangeText={setInputName}
+            style={styles.input}
+          />
         </View>
-      </Modal>
+      </ScheduleModal>
 
       {/* 직원 탭 바 */}
       <View style={styles.tabBar}>
