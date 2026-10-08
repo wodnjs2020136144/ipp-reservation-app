@@ -83,6 +83,6 @@ target 'ippreservationapp' do
     # Until this is fixed upstream (or the project is upgraded to a newer
     # Expo/React Native whose pinned Folly/fmt version tolerates this Xcode), use
     # `npx expo start --go` + Expo Go on the simulator instead of a full native
-    # build (see README "알려진 이슈"), or build with an older Xcode.
+    # build (see README "시작하기"), or build with an older Xcode.
   end
 end
